@@ -7,19 +7,24 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root{--bg:#0a1222;--panel:#0f1a2e;--panel2:#15223b;--line:#22324f;--fg:#eef2fa;--muted:#8e9bb6;--y:#ffe500;--yink:#16140a;--yd:rgba(255,229,0,.10);--g:#34d399;--gd:rgba(52,211,153,.14);--r:#f87171;--o:#fb923c;--p:#a78bfa;--b:#60a5fa;color-scheme:dark}
+:root{--bg:#0a1222;--panel:#0f1a2e;--panel2:#15223b;--line:#22324f;--fg:#eef2fa;--muted:#8e9bb6;--y:#ffe500;--yink:#16140a;--yd:rgba(255,229,0,.10);--g:#34d399;--gd:rgba(52,211,153,.14);--r:#f87171;--o:#fb923c;--a:#fbbf24;--p:#a78bfa;--b:#60a5fa;--b2:#93c5fd;--b3:#3b82f6;--gr:#64748b;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg)}
 body{color:var(--fg);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 b{font-weight:700}
-.top{position:sticky;top:0;z-index:20;background:rgba(10,18,34,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+a{color:inherit}
+.top{position:sticky;top:0;z-index:20;background:rgba(10,18,34,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 .top-in{max-width:1400px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px}
 .badge{background:var(--y);color:var(--yink);font-weight:800;font-size:18px;padding:11px 12px;border-radius:12px;line-height:1;box-shadow:0 0 0 5px var(--yd)}
 .brand{font-size:20px;font-weight:800;line-height:1.1;margin:0}
 .brand .y{color:var(--y)}
 .sub{color:var(--muted);font-size:12.5px;margin:3px 0 0}
 .top-r{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.nav{max-width:1400px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));display:flex;gap:6px;flex-wrap:wrap}
+.nav a{text-decoration:none;color:var(--muted);font-weight:600;font-size:13px;padding:6px 12px;border-radius:999px;border:1px solid transparent}
+.nav a:hover{color:var(--fg);border-color:var(--line)}
 .pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:999px;font-size:12.5px;color:var(--muted)}
 .pill b{color:var(--fg)}
 .live{border-color:rgba(52,211,153,.35);color:var(--g);font-weight:700}
@@ -28,26 +33,33 @@ b{font-weight:700}
 .live.err .dot{background:var(--r);box-shadow:0 0 0 4px rgba(248,113,113,.15)}
 .live.busy .dot{animation:pulse 1s infinite}
 @keyframes pulse{50%{opacity:.3}}
+.menu{position:relative}
+.menu-list{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:6px;display:grid;min-width:210px;box-shadow:0 12px 32px rgba(0,0,0,.45);z-index:30}
+.menu-list button{appearance:none;border:0;background:none;color:var(--fg);font:inherit;font-size:13px;font-weight:600;text-align:left;padding:9px 10px;border-radius:8px;cursor:pointer}
+.menu-list button:hover{background:var(--yd)}
+.menu-list span{display:block;color:var(--muted);font-weight:400;font-size:11.5px}
 .wrap{max-width:1400px;margin:0 auto;padding:22px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px));display:grid;gap:22px}
 .eyebrow{display:flex;align-items:center;gap:10px;color:var(--y);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 4px}
 .eyebrow::before{content:"";width:22px;height:3px;border-radius:2px;background:var(--r)}
 .h{font-size:19px;font-weight:800;margin:0}
 .h1{font-size:30px;font-weight:800;margin:0;letter-spacing:-.01em}
 .h1 .y{color:var(--y)}
-.note{color:var(--muted);font-size:13px;margin:3px 0 0}
-.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px}
+.note{color:var(--muted);font-size:13px;margin:3px 0 0;max-width:80ch}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;position:sticky;top:var(--hdr,112px);z-index:10}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{appearance:none;border:1px solid var(--line);background:var(--panel2);color:var(--fg);font:inherit;font-size:13px;font-weight:700;padding:8px 13px;border-radius:999px;cursor:pointer}
 .chip:hover{border-color:var(--y)}
 .chip[aria-pressed=true]{background:var(--y);color:var(--yink);border-color:var(--y)}
+.tag{appearance:none;border:1px solid var(--y);background:var(--yd);color:var(--y);font:inherit;font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:999px;cursor:pointer}
 .in{appearance:none;background:var(--panel2);border:1px solid var(--line);color:var(--fg);font:inherit;font-size:13px;padding:9px 12px;border-radius:10px;min-width:0}
 select.in{padding-right:28px;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 15px) 55%,calc(100% - 10px) 55%;background-size:5px 5px;background-repeat:no-repeat}
 .search{flex:1 1 220px}
 .btn{appearance:none;border:1px solid var(--line);background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;padding:9px 13px;border-radius:10px;cursor:pointer}
 .btn:hover{color:var(--fg);border-color:var(--muted)}
 .btn.yb{background:var(--y);color:var(--yink);border-color:var(--y);font-weight:800}
+.btn.ob{color:var(--fg);border-color:var(--line);background:var(--panel)}
 :focus-visible{outline:2px solid var(--y);outline-offset:2px}
-.sec{display:grid;gap:12px;min-width:0}
+.sec{display:grid;gap:12px;min-width:0;scroll-margin-top:190px}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));gap:12px}
 .card{text-align:left;appearance:none;font:inherit;color:inherit;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;gap:9px;align-content:start;cursor:pointer}
 .card:hover{border-color:#3a4f78}
@@ -69,17 +81,33 @@ select.in{padding-right:28px;background-image:linear-gradient(45deg,transparent 
 .kpi::before{content:"";position:absolute;left:16px;right:16px;top:0;height:3px;border-radius:0 0 3px 3px;background:var(--k)}
 .kpi .big{font-size:27px}
 .kpi .lbl{font-size:12.5px;font-weight:600}
-.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:16px}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:14px;align-content:start;min-width:0}
+.panel .kpi{background:var(--panel2)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:14px;align-content:start;min-width:0;scroll-margin-top:190px}
 .ph{display:flex;gap:12px;align-items:flex-start}
 .ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none;background:var(--ic);color:var(--icc)}
 .ico svg{width:20px;height:20px}
-.chart{position:relative;min-height:260px}
+.chart{position:relative;min-height:200px}
 .tip{position:absolute;pointer-events:none;background:#1b2843;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.45);white-space:nowrap;z-index:3}
 .tip span{color:var(--muted);display:block}
-.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
-.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
-.legend b{color:var(--fg)}
+/* expiry buckets */
+.exrows{display:grid;gap:4px}
+.exhead,.exrow{display:grid;grid-template-columns:minmax(118px,150px) minmax(60px,1fr) 84px 54px 78px;align-items:center;gap:12px;padding:8px 10px}
+.exhead{color:var(--muted);font-size:11.5px;font-weight:600;padding-block:2px}
+.exhead span:nth-child(n+3){text-align:right}
+.exrow{appearance:none;font:inherit;color:inherit;background:transparent;border:1px solid transparent;border-radius:12px;cursor:pointer;text-align:left}
+.exrow:hover{background:var(--panel2)}
+.exrow[aria-pressed=true]{border-color:var(--y);background:var(--yd)}
+.exl{display:flex;align-items:center;gap:8px;font-weight:600;white-space:nowrap}
+.exl i{width:10px;height:10px;border-radius:3px;flex:none}
+.extrack{height:12px;background:var(--line);border-radius:6px;overflow:hidden}
+.extrack i{display:block;height:100%;border-radius:6px;min-width:2px}
+.exq{text-align:right;font-weight:800}
+.exp,.exs{text-align:right;color:var(--muted);font-size:12px}
+.ex-warn{display:flex;gap:10px;flex-wrap:wrap}
+.ex-warn .pill b.r{color:var(--r)} .ex-warn .pill b.o{color:var(--o)}
+@media (max-width:560px){.exhead,.exrow{grid-template-columns:minmax(100px,1fr) minmax(50px,1fr) 70px}.exp,.exs,.exhead span:nth-child(n+4){display:none}}
+/* tables */
 .tablewrap{max-height:620px;overflow:auto;border:1px solid var(--line);border-radius:14px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{position:sticky;top:0;background:var(--panel2);text-align:left;font-weight:700;color:var(--muted);padding:0;z-index:1;white-space:nowrap}
@@ -88,29 +116,57 @@ th[aria-sort] button{color:var(--y)}
 th[aria-sort=descending] button::after{content:" ↓"}
 th[aria-sort=ascending] button::after{content:" ↑"}
 th.num{text-align:right}
+th.plain{padding:11px 12px}
 td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:middle}
 td.num{text-align:right;white-space:nowrap}
 tbody tr:nth-child(even){background:rgba(255,255,255,.025)}
 tbody tr:hover{background:var(--yd)}
 .c-wh{font-weight:800;color:var(--y);white-space:nowrap}
 .c-sku{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.c-loc{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:nowrap}
 .c-title{font-weight:600;min-width:180px}
 .c-fam{color:var(--muted);white-space:nowrap}
+.c-date{white-space:nowrap}
+.c-date.r{color:var(--r);font-weight:700}.c-date.o{color:var(--o);font-weight:700}
 .loc{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end}
 .track{width:64px;height:6px;background:var(--line);border-radius:3px;overflow:hidden;display:inline-block}
 .track i{display:block;height:100%;background:var(--g);border-radius:3px}
+.arrow{color:var(--muted);padding-inline:4px}
+.pr{display:inline-block;font-size:11.5px;font-weight:800;padding:4px 9px;border-radius:999px;white-space:nowrap}
+.pr1{background:rgba(52,211,153,.16);color:var(--g)}
+.pr2{background:rgba(255,229,0,.14);color:var(--y)}
+.pr3{background:rgba(96,165,250,.16);color:var(--b)}
+.pr4{background:rgba(167,139,250,.16);color:var(--p)}
+.yes{color:var(--g);font-weight:700}.no{color:var(--muted)}
 table.single .colwh{display:none}
-@media (max-width:700px){.hide-sm{display:none}.h1{font-size:24px}}
+@media (max-width:760px){.hide-sm{display:none}.h1{font-size:24px}.filters{position:static}}
 .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12.5px}
 .sk{display:block;height:100%;min-height:inherit;border-radius:14px;background:linear-gradient(90deg,var(--panel2),#1b2a47,var(--panel2));background-size:200% 100%;animation:sh 1.4s infinite}
 @keyframes sh{to{background-position:-200% 0}}
 .msg{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--muted);font-size:13px;min-height:120px;text-align:center;padding:16px;border:1px dashed var(--line);border-radius:14px}
 .msg.err::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--r);flex:none}
-@media (prefers-reduced-motion:reduce){.sk,.live.busy .dot{animation:none}}
+@media (prefers-reduced-motion:reduce){.sk,.live.busy .dot{animation:none}html{scroll-behavior:auto}}
+html{scroll-behavior:smooth}
+/* print / PDF */
+.print-only{display:none}
+@media print{
+  :root{--bg:#fff;--panel:#fff;--panel2:#f3f5f9;--line:#d6dce8;--fg:#111827;--muted:#4b5563;--y:#b58900;--yink:#111;--yd:#fff8d6;color-scheme:light}
+  @page{size:A4 landscape;margin:10mm}
+  body{font-size:11px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .top{position:static;backdrop-filter:none}
+  .nav,.filters,.top-r .btn,.menu,#more,#pmore,.no-print{display:none!important}
+  .print-only{display:block}
+  .tablewrap{max-height:none;overflow:visible}
+  th{position:static}
+  .panel,.card,.kpi{break-inside:avoid}
+  .sec,.panel{break-inside:auto}
+  .wrap{padding-top:8px;gap:14px}
+  .badge{box-shadow:none}
+}
 </style>
 </head>
 <body>
-<header class="top">
+<header class="top" id="hdr">
   <div class="top-in">
     <div class="badge" aria-hidden="true">SOH</div>
     <div>
@@ -120,16 +176,28 @@ table.single .colwh{display:none}
     <div class="top-r">
       <span class="pill live" id="live"><span class="dot"></span><span id="liveTxt">Loading</span></span>
       <span class="pill">Updated <b id="loadedAt">—</b></span>
+      <div class="menu">
+        <button class="btn ob" id="exportBtn" type="button" aria-haspopup="true" aria-expanded="false">Export ▾</button>
+        <div class="menu-list" id="exportMenu" hidden>
+          <button type="button" data-ex="pdf">Export as PDF<span>Prints this view; choose "Save as PDF"</span></button>
+          <button type="button" data-ex="xlsx">Export as Excel<span>All sections, current filters, one sheet each</span></button>
+          <button type="button" data-ex="csv-sku">Export SKUs as CSV<span>SKU table with current filters</span></button>
+          <button type="button" data-ex="csv-plan">Export plan as CSV<span>Consolidation moves with current filters</span></button>
+        </div>
+      </div>
       <button class="btn yb" id="refresh" type="button">Refresh</button>
     </div>
   </div>
+  <nav class="nav" aria-label="Sections">
+    <a href="#warehouses">Overview</a><a href="#expiry">Expiry</a><a href="#families">Families</a><a href="#skusec">SKUs</a><a href="#consol">Consolidation plan</a>
+  </nav>
 </header>
 
 <main class="wrap">
   <div>
     <p class="eyebrow">Inventory tracking</p>
     <h1 class="h1">Stock <span class="y">on hand</span></h1>
-    <p class="note">Showing <b id="selName" style="color:var(--y)">All warehouses</b>. Pick a warehouse card or chip to filter every section.</p>
+    <p class="note">Showing <b id="selName" style="color:var(--y)">All warehouses</b><span id="printFilters"></span></p>
   </div>
 
   <section class="sec" id="warehouses">
@@ -143,7 +211,8 @@ table.single .colwh{display:none}
   <div class="filters" id="filters">
     <div class="chips" id="chips" role="group" aria-label="Warehouse"></div>
     <select class="in" id="fam" aria-label="Family"><option value="All">All families</option></select>
-    <input class="in search" id="q" type="search" placeholder="Search SKU or title" aria-label="Search SKU or title">
+    <input class="in search" id="q" type="search" placeholder="Search SKU, title or location" aria-label="Search SKU, title or location">
+    <button class="tag" id="bucketTag" type="button" hidden></button>
     <button class="btn" id="reset" type="button">Reset filters</button>
   </div>
 
@@ -158,20 +227,19 @@ table.single .colwh{display:none}
   </section>
 
   <div class="grid2">
-    <section class="panel" id="families">
-      <div class="ph">
-        <div class="ico" style="--ic:rgba(255,229,0,.12);--icc:var(--y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h12M4 12h16M4 18h8"/></svg></div>
-        <div><h2 class="h">SOH by family</h2><p class="note">Units on hand per product family, largest first.</p></div>
-      </div>
-      <div class="chart" id="famChart"></div>
-    </section>
     <section class="panel" id="expiry">
       <div class="ph">
         <div class="ico" style="--ic:rgba(248,113,113,.14);--icc:var(--r)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></div>
-        <div><h2 class="h">Expiry profile</h2><p class="note">Units on hand by expiry month. The yellow line marks the current month.</p></div>
+        <div><h2 class="h">Expiry risk</h2><p class="note">Units on hand by time left until expiry. Click a row to list those SKUs in the table below.</p></div>
       </div>
-      <div class="chart" id="expChart"></div>
-      <div class="legend"><span><i style="background:var(--r)"></i>Past months</span><span><i style="background:var(--o)"></i>This month and next 2</span><span><i style="background:var(--b)"></i>Later</span><span>No expiry date: <b id="noExp">—</b> units</span></div>
+      <div class="exrows" id="expChart"></div>
+    </section>
+    <section class="panel" id="families">
+      <div class="ph">
+        <div class="ico" style="--ic:rgba(255,229,0,.12);--icc:var(--y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h12M4 12h16M4 18h8"/></svg></div>
+        <div><h2 class="h">SOH by family</h2><p class="note">Units on hand per product family, largest first. Click a bar to filter the tables.</p></div>
+      </div>
+      <div class="chart" id="famChart"></div>
     </section>
   </div>
 
@@ -189,12 +257,47 @@ table.single .colwh{display:none}
           <th class="hide-sm"><button type="button" data-sort="family">Family</button></th>
           <th class="num"><button type="button" data-sort="soh">SOH qty</button></th>
           <th class="num hide-sm"><button type="button" data-sort="reserved">Reserved</button></th>
+          <th class="hide-sm"><button type="button" data-sort="nearest">Nearest expiry</button></th>
           <th class="num"><button type="button" data-sort="locations">Unique locations</button></th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
     <div class="foot"><span id="count"></span><button class="btn" id="more" type="button" hidden>Show 200 more</button></div>
+  </section>
+
+  <section class="panel" id="consol">
+    <div class="ph">
+      <div class="ico" style="--ic:rgba(167,139,250,.16);--icc:var(--p)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M10 3l4 4-4 4M20 17H10M14 13l-4 4 4 4"/></svg></div>
+      <div><h2 class="h">Consolidation plan</h2><p class="note">Moves that merge the same SKU with the same expiry date into the location already holding most of it. Batches with different expiry dates are never merged. Expired stock and stock with no expiry date stay where they are. Bin capacity is not checked.</p></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi" style="--k:var(--y)"><span class="lbl">Moves</span><span class="big" data-p="moves">—</span></div>
+      <div class="kpi" style="--k:var(--b)"><span class="lbl">Qty to move</span><span class="big" data-p="qty">—</span></div>
+      <div class="kpi" style="--k:var(--g)"><span class="lbl">Locations freed</span><span class="big" data-p="freed">—</span></div>
+      <div class="kpi" style="--k:var(--g)"><span class="lbl">Quick-win moves</span><span class="big" data-p="qw">—</span></div>
+      <div class="kpi" style="--k:var(--p)"><span class="lbl">On hold (reserved)</span><span class="big" data-p="hold">—</span></div>
+    </div>
+    <div class="chips no-print" id="prChips" role="group" aria-label="Priority"></div>
+    <div class="tablewrap">
+      <table id="ptbl">
+        <thead><tr>
+          <th class="plain">Priority</th>
+          <th class="plain colwh">Warehouse</th>
+          <th class="plain">SKU</th>
+          <th class="plain">Title</th>
+          <th class="plain">Expiry</th>
+          <th class="plain num hide-sm">Days</th>
+          <th class="plain">From → To</th>
+          <th class="plain num">Move qty</th>
+          <th class="plain num hide-sm">Reserved</th>
+          <th class="plain num hide-sm">Qty at To</th>
+          <th class="plain">Frees From</th>
+        </tr></thead>
+        <tbody id="ptbody"></tbody>
+      </table>
+    </div>
+    <div class="foot"><span id="pcount"></span><button class="btn" id="pmore" type="button" hidden>Show 200 more</button></div>
   </section>
 </main>
 
@@ -209,60 +312,105 @@ const SB_READ_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 // Fallback when no bookmark pull is saved yet: the published CSV of the sheet's Data tab.
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSRcYdKomXzzt5njQ6ChehJaOjYJj61mlEObBM_ARGXugy_jk4iRQucj-7k0GEBlb0W9khoKPq1LUSy/pub?gid=0&single=true&output=csv';
 const NEAR_EXPIRY_DAYS = 30;
+const QUICK_WIN_MAX_QTY = 20;
 const CHECK_EVERY_SECONDS = 60;
 
 (function () {
   const F = d3.format(',');
   const $ = (s) => document.querySelector(s);
-  const st = { wh: 'All', family: 'All', q: '', sortKey: 'locations', sortDir: -1, shown: 200 };
-  let M = null; // aggregated model
-  let lastAt = null;
+  const BK = [
+    { k: 'exp', l: 'Expired', c: 'var(--r)' },
+    { k: 'd30', l: '0–30 days', c: 'var(--o)' },
+    { k: 'd60', l: '31–60 days', c: 'var(--a)' },
+    { k: 'd90', l: '61–90 days', c: 'var(--y)' },
+    { k: 'm6', l: '3–6 months', c: 'var(--b2)' },
+    { k: 'm12', l: '6–12 months', c: 'var(--b)' },
+    { k: 'y1', l: 'Over 1 year', c: 'var(--b3)' },
+    { k: 'none', l: 'No expiry date', c: 'var(--gr)' },
+  ];
+  const BKL = Object.fromEntries(BK.map((b) => [b.k, b.l]));
+  const PR = { 1: '1 Quick win', 2: '2 Frees location', 3: '3 Merge only', 4: '4 Wait: reserved' };
+  const st = { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200 };
+  let M = null;
+  let lastAt = null, updatedLabel = '';
   const H = { apikey: SB_READ_KEY, Authorization: 'Bearer ' + SB_READ_KEY };
   const API = SB_URL + '/rest/v1/soh_snapshots?id=eq.1&select=';
 
-  const iso = (d) => d.toISOString().slice(0, 10);
+  const iso = (d) => { const z = new Date(d.getTime() - d.getTimezoneOffset() * 6e4); return z.toISOString().slice(0, 10); };
+  const dayDiff = (a, b) => Math.round((Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 864e5);
+  const bucketOf = (exp, t0) => {
+    if (!exp) return 'none';
+    const d = dayDiff(exp, t0);
+    if (d < 0) return 'exp';
+    if (d <= 30) return 'd30';
+    if (d <= 60) return 'd60';
+    if (d <= 90) return 'd90';
+    if (d <= 180) return 'm6';
+    if (d <= 365) return 'm12';
+    return 'y1';
+  };
 
   function build(rows) {
-    const today = new Date();
-    const t0 = iso(today);
-    const t1 = iso(new Date(today.getTime() + NEAR_EXPIRY_DAYS * 864e5));
-    const byWh = new Map(), byFam = new Map(), byExp = new Map(), sku = new Map();
-    const W = (k) => {
-      let o = byWh.get(k);
-      if (!o) { o = { wh: k, soh: 0, reserved: 0, expired: 0, expiring: 0, skus: new Set(), locs: new Set() }; byWh.set(k, o); }
-      return o;
-    };
+    const t0 = iso(new Date());
+    const byWh = new Map(), byFam = new Map(), byBk = new Map(), sku = new Map();
+    const L = new Map(), keep = new Set();
+    const W = (k) => { let o = byWh.get(k); if (!o) { o = { wh: k, soh: 0, reserved: 0, expired: 0, expiring: 0, skus: new Set(), locs: new Set() }; byWh.set(k, o); } return o; };
+    const B = (k) => { let o = byBk.get(k); if (!o) { o = { soh: 0, skus: new Set() }; byBk.set(k, o); } return o; };
     const addN = (m, k, q) => m.set(k, (m.get(k) || 0) + q);
     for (const r of rows) {
       const wh = r.partner_warehouse_code;
       if (!wh) continue;
-      const qty = +String(r.qty || '').replace(/,/g, '') || 0;
-      const res = +String(r.qty_reserved || '').replace(/,/g, '') || 0;
-      const exp = String(r.expiry_date || '').slice(0, 10);
-      const valid = /^\d{4}-\d{2}-\d{2}$/.test(exp);
+      const loc = r.location_code;
+      const qty = +String(r.qty ?? '').replace(/,/g, '') || 0;
+      const res = +String(r.qty_reserved ?? '').replace(/,/g, '') || 0;
+      const e10 = String(r.expiry_date || '').slice(0, 10);
+      const exp = /^\d{4}-\d{2}-\d{2}$/.test(e10) ? e10 : '';
       const fam = r.family_code || '(no family)';
-      const month = valid ? exp.slice(0, 7) : 'none';
+      const bk = bucketOf(exp, t0);
       for (const k of [wh, 'All']) {
         const o = W(k);
         o.soh += qty; o.reserved += res;
-        o.skus.add(r.sku); o.locs.add(wh + '|' + r.location_code);
-        if (valid && exp < t0) o.expired += qty;
-        if (valid && exp >= t0 && exp <= t1) o.expiring += qty;
+        o.skus.add(r.sku); o.locs.add(wh + '|' + loc);
+        if (bk === 'exp') o.expired += qty;
+        if (bk === 'd30') o.expiring += qty;
         addN(byFam, k + '|' + fam, qty);
-        addN(byExp, k + '|' + month, qty);
+        const b = B(k + '|' + bk); b.soh += qty; b.skus.add(wh + '|' + r.sku);
       }
       const key = wh + '|' + r.sku;
       let s = sku.get(key);
-      if (!s) { s = { wh, sku: r.sku, title: r.title, family: fam, soh: 0, reserved: 0, locs: new Set() }; sku.set(key, s); }
-      s.soh += qty; s.reserved += res; s.locs.add(r.location_code);
+      if (!s) { s = { wh, sku: r.sku, title: r.title, family: fam, soh: 0, reserved: 0, locs: new Set(), bk: new Set(), nearest: '' }; sku.set(key, s); }
+      s.soh += qty; s.reserved += res; s.locs.add(loc); s.bk.add(bk);
+      if (exp && (!s.nearest || exp < s.nearest)) s.nearest = exp;
+      // consolidation plan input
+      if (!exp || exp < t0) { keep.add(wh + '|' + loc); continue; }
+      const lk = [wh, r.sku, exp, loc].join('|');
+      let o = L.get(lk);
+      if (!o) { o = { wh, sku: r.sku, title: r.title, family: fam, exp, loc, q: 0, r: 0 }; L.set(lk, o); }
+      o.q += qty; o.r += res;
     }
+    // consolidation plan: same warehouse, SKU and expiry; target = location holding most of the batch
+    const batches = new Map();
+    for (const o of L.values()) { const k = o.wh + '|' + o.sku + '|' + o.exp; (batches.get(k) || batches.set(k, []).get(k)).push(o); }
+    for (const a of batches.values()) { a.sort((x, y) => y.q - x.q || (x.loc < y.loc ? -1 : x.loc > y.loc ? 1 : 0)); keep.add(a[0].wh + '|' + a[0].loc); }
+    const moves = [];
+    for (const a of batches.values()) {
+      if (a.length < 2) continue;
+      const t = a[0];
+      for (const o of a.slice(1)) {
+        const frees = !keep.has(o.wh + '|' + o.loc);
+        const pr = o.r > 0 ? 4 : frees ? (o.q <= QUICK_WIN_MAX_QTY ? 1 : 2) : 3;
+        moves.push({ pr, wh: o.wh, sku: o.sku, title: o.title, family: o.family, exp: o.exp, days: dayDiff(o.exp, t0), from: o.loc, qty: o.q, reserved: o.r, to: t.loc, toq: t.q, frees });
+      }
+    }
+    moves.sort((a, b) => a.pr - b.pr || a.wh.localeCompare(b.wh) || a.days - b.days);
     const split = (m) => [...m].map(([k, v]) => { const i = k.indexOf('|'); return [k.slice(0, i), k.slice(i + 1), v]; });
     return {
+      t0,
       wh: [...byWh.values()].map((o) => ({ wh: o.wh, soh: o.soh, reserved: o.reserved, available: o.soh - o.reserved, skus: o.skus.size, locations: o.locs.size, expired: o.expired, expiring: o.expiring })),
       fam: split(byFam).map(([wh, family, soh]) => ({ wh, family, soh })),
-      exp: split(byExp).map(([wh, month, soh]) => ({ wh, month, soh })),
-      sku: [...sku.values()].map((s) => ({ wh: s.wh, sku: s.sku, title: s.title, family: s.family, soh: s.soh, reserved: s.reserved, locations: s.locs.size })),
-      lines: rows.length,
+      bk: byBk,
+      sku: [...sku.values()].map((s) => ({ wh: s.wh, sku: s.sku, title: s.title, family: s.family, soh: s.soh, reserved: s.reserved, locations: s.locs.size, bk: s.bk, nearest: s.nearest })),
+      moves,
     };
   }
 
@@ -278,12 +426,11 @@ const CHECK_EVERY_SECONDS = 60;
     $('#cards').replaceChildren(mk());
     $('#famChart').replaceChildren(mk());
     $('#expChart').replaceChildren(mk());
-    $('#tbody').replaceChildren();
-    $('#count').textContent = text || 'Loading…';
+    $('#tbody').replaceChildren(); $('#ptbody').replaceChildren();
+    $('#count').textContent = text || 'Loading…'; $('#pcount').textContent = '';
   }
 
   const when = (t) => new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-
   let fromSheet = false, sheetAt = 0;
 
   async function loadSheet() {
@@ -295,7 +442,8 @@ const CHECK_EVERY_SECONDS = 60;
     if (!rows.columns.includes('partner_warehouse_code') || !rows.columns.includes('qty')) throw new Error('The sheet CSV has no partner_warehouse_code or qty column.');
     M = build(rows);
     fromSheet = true; sheetAt = Date.now(); lastAt = null;
-    $('#loadedAt').textContent = 'from sheet, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    updatedLabel = 'from sheet, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    $('#loadedAt').textContent = updatedLabel;
     setLive('ok', 'LIVE');
     render();
   }
@@ -317,12 +465,12 @@ const CHECK_EVERY_SECONDS = 60;
         const { cols, rows, updated_at } = snap;
         M = build(rows.map((a) => Object.fromEntries(cols.map((c, i) => [c, a[i]]))));
         fromSheet = false; lastAt = updated_at;
-        $('#loadedAt').textContent = when(updated_at);
+        updatedLabel = when(updated_at);
+        $('#loadedAt').textContent = updatedLabel;
         setLive('ok', 'LIVE');
         render();
         return;
       }
-      // No bookmark pull saved yet: read the published sheet (at most every 5 minutes unless forced).
       if (M && fromSheet && !force && Date.now() - sheetAt < 300000) { setLive('ok', 'LIVE'); return; }
       await loadSheet();
     } catch (e) {
@@ -331,13 +479,37 @@ const CHECK_EVERY_SECONDS = 60;
     }
   }
 
-  const fail = () => !M;
+  // ---------- filtered views (shared by screen and exports) ----------
+  const matchQ = (q, ...vals) => !q || vals.some((v) => String(v || '').toLowerCase().includes(q));
+  function skuView() {
+    const q = st.q.trim().toLowerCase();
+    let rows = M.sku.filter((r) => (st.wh === 'All' || r.wh === st.wh) && (st.family === 'All' || r.family === st.family) && (!st.bucket || r.bk.has(st.bucket)) && matchQ(q, r.sku, r.title));
+    rows.sort((a, b) => {
+      let va = a[st.sortKey], vb = b[st.sortKey];
+      if (st.sortKey === 'nearest') { va = va || '9999'; vb = vb || '9999'; }
+      const c = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb));
+      return c * st.sortDir || b.soh - a.soh;
+    });
+    return rows;
+  }
+  function planBase() {
+    const q = st.q.trim().toLowerCase();
+    return M.moves.filter((m) => (st.wh === 'All' || m.wh === st.wh) && (st.family === 'All' || m.family === st.family) && matchQ(q, m.sku, m.title, m.from, m.to));
+  }
+  const planView = () => planBase().filter((m) => st.pr === 'All' || String(m.pr) === st.pr);
 
   function render() {
-    if (fail()) return;
-    const s = st.wh;
-    $('#selName').textContent = s === 'All' ? 'All warehouses' : s;
-    drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawFamily(); drawExpiry(); drawTable();
+    if (!M) return;
+    $('#selName').textContent = st.wh === 'All' ? 'All warehouses' : st.wh;
+    const extra = [];
+    if (st.family !== 'All') extra.push('family ' + st.family);
+    if (st.bucket) extra.push('expiry ' + BKL[st.bucket]);
+    if (st.q.trim()) extra.push('search "' + st.q.trim() + '"');
+    $('#printFilters').textContent = extra.length ? ' · ' + extra.join(' · ') : '';
+    const tag = $('#bucketTag');
+    tag.hidden = !st.bucket;
+    tag.textContent = st.bucket ? 'Expiry: ' + BKL[st.bucket] + ' ×' : '';
+    drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawExpiry(); drawFamily(); drawTable(); drawPlan();
   }
 
   function drawChips() {
@@ -351,6 +523,8 @@ const CHECK_EVERY_SECONDS = 60;
     }));
   }
 
+  const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+
   function drawCards() {
     const rows = M.wh.filter((r) => r.wh !== 'All').sort((a, b) => a.wh.localeCompare(b.wh));
     $('#cards').replaceChildren(...rows.map((r) => {
@@ -358,12 +532,11 @@ const CHECK_EVERY_SECONDS = 60;
       b.type = 'button'; b.className = 'card'; b.dataset.wh = r.wh;
       b.setAttribute('aria-pressed', String(r.wh === st.wh));
       const tot = r.soh || 1;
-      const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
       const top = el('div', 'card-top');
       const sk = el('span', 'skus'); sk.append(el('b', '', F(r.skus)), ' SKUs');
       top.append(el('span', 'wh', r.wh), sk);
       const bar = el('div', 'bar');
-      const i1 = el('i'); i1.style.width = (100 * r.available / tot) + '%';
+      const i1 = el('i'); i1.style.width = (100 * Math.max(0, r.available) / tot) + '%';
       const i2 = el('i'); i2.style.width = (100 * r.reserved / tot) + '%';
       bar.append(i1, i2);
       const mini = el('div', 'mini');
@@ -383,12 +556,36 @@ const CHECK_EVERY_SECONDS = 60;
 
   function drawKpis() {
     const r = M.wh.find((x) => x.wh === st.wh) || {};
-    document.querySelectorAll('.kpi [data-k]').forEach((el) => { const v = r[el.dataset.k]; el.textContent = v == null ? '—' : F(v); });
+    document.querySelectorAll('#kpis [data-k]').forEach((e) => { const v = r[e.dataset.k]; e.textContent = v == null ? '—' : F(v); });
+  }
+
+  function expiryRows() {
+    const tot = (M.wh.find((r) => r.wh === st.wh) || {}).soh || 0;
+    return BK.map((b) => { const x = M.bk.get(st.wh + '|' + b.k); return { ...b, soh: x ? x.soh : 0, skus: x ? x.skus.size : 0, pct: tot ? (x ? x.soh : 0) / tot : 0 }; });
+  }
+
+  function drawExpiry() {
+    const box = $('#expChart');
+    const rows = expiryRows();
+    const max = d3.max(rows, (r) => r.soh) || 1;
+    const P = d3.format('.1%');
+    const head = el('div', 'exhead');
+    head.append(el('span', '', 'Time to expiry'), el('span', '', ''), el('span', '', 'Units'), el('span', '', 'Share'), el('span', '', 'SKUs'));
+    box.replaceChildren(head, ...rows.map((r) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'exrow'; b.dataset.bk = r.k;
+      b.setAttribute('aria-pressed', String(st.bucket === r.k));
+      b.title = r.soh ? 'Show these SKUs in the table' : '';
+      const l = el('span', 'exl'); const dot = el('i'); dot.style.background = r.c; l.append(dot, r.l);
+      const tr = el('span', 'extrack'); const fill = el('i'); fill.style.width = (100 * r.soh / max) + '%'; fill.style.background = r.c; if (!r.soh) fill.style.minWidth = '0'; tr.append(fill);
+      b.append(l, tr, el('span', 'exq', F(r.soh)), el('span', 'exp', r.soh ? P(r.pct) : '–'), el('span', 'exs', F(r.skus)));
+      return b;
+    }));
   }
 
   const tipFor = (box) => { const t = document.createElement('div'); t.className = 'tip'; t.hidden = true; box.append(t); return t; };
   const showTip = (box, t, e, head, body) => {
-    t.replaceChildren(); const h = document.createElement('span'); h.textContent = head; const b = document.createElement('b'); b.textContent = body; t.append(h, b); t.hidden = false;
+    t.replaceChildren(); const h = el('span', '', head); const b = el('b', '', body); t.append(h, b); t.hidden = false;
     const r = box.getBoundingClientRect(); let x = e.clientX - r.left + 12; const tw = t.offsetWidth;
     if (x + tw > r.width) x = Math.max(0, e.clientX - r.left - tw - 12);
     t.style.left = x + 'px'; t.style.top = Math.max(0, e.clientY - r.top - 10) + 'px';
@@ -397,7 +594,7 @@ const CHECK_EVERY_SECONDS = 60;
   function drawFamily() {
     const box = $('#famChart'); box.replaceChildren();
     const rows = M.fam.filter((r) => r.wh === st.wh && r.soh > 0).sort((a, b) => b.soh - a.soh);
-    const W = Math.max(280, box.clientWidth), rowH = 28, H = Math.max(40, rows.length * rowH + 6);
+    const W = Math.max(280, box.clientWidth), rowH = 26, H = Math.max(40, rows.length * rowH + 6);
     const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H).attr('role', 'img').attr('aria-label', 'SOH by family');
     const meas = (txt, bold) => { const t = svg.append('text').attr('font-size', 12).attr('font-weight', bold ? 700 : 400).text(txt); const w = t.node().getComputedTextLength(); t.remove(); return w; };
     const lw = d3.max(rows, (r) => meas(r.family)) || 0;
@@ -405,116 +602,164 @@ const CHECK_EVERY_SECONDS = 60;
     const L = Math.min(lw + 12, W * 0.45), R = vw + 12;
     const x = d3.scaleLinear([0, d3.max(rows, (r) => r.soh) || 1], [0, Math.max(10, W - L - R)]);
     const t = tipFor(box);
-    const g = svg.selectAll('g.r').data(rows).join('g').attr('class', 'r').attr('transform', (d, i) => `translate(0,${i * rowH + 3})`);
-    g.append('text').attr('x', L - 10).attr('y', rowH / 2 - 1).attr('dy', '.35em').attr('text-anchor', 'end').attr('font-size', 12).style('fill', 'var(--muted)').text((d) => d.family);
-    g.append('rect').attr('x', L).attr('y', 5).attr('height', rowH - 12).attr('rx', 4).attr('width', (d) => Math.max(2, x(d.soh)))
-      .style('fill', (d, i) => (i === 0 ? 'var(--y)' : 'var(--b)')).style('fill-opacity', (d, i) => (i === 0 ? 1 : 0.7)).style('cursor', 'pointer')
+    const g = svg.selectAll('g.r').data(rows).join('g').attr('class', 'r').attr('transform', (d, i) => `translate(0,${i * rowH + 3})`).style('cursor', 'pointer')
+      .on('click', (e, d) => { st.family = st.family === d.family ? 'All' : d.family; st.shown = 200; st.pshown = 200; render(); });
+    g.append('text').attr('x', L - 10).attr('y', rowH / 2 - 1).attr('dy', '.35em').attr('text-anchor', 'end').attr('font-size', 12).style('fill', (d) => (d.family === st.family ? 'var(--y)' : 'var(--muted)')).text((d) => d.family);
+    g.append('rect').attr('x', L).attr('y', 5).attr('height', rowH - 11).attr('rx', 4).attr('width', (d) => Math.max(2, x(d.soh)))
+      .style('fill', (d, i) => (d.family === st.family || (st.family === 'All' && i === 0) ? 'var(--y)' : 'var(--b)')).style('fill-opacity', (d, i) => (d.family === st.family || (st.family === 'All' && i === 0) ? 1 : 0.7))
       .on('mousemove', (e, d) => showTip(box, t, e, d.family, F(d.soh) + ' units'))
-      .on('mouseleave', () => { t.hidden = true; })
-      .on('click', (e, d) => { st.family = d.family; st.shown = 200; render(); document.getElementById('skusec').scrollIntoView({ behavior: 'smooth' }); });
+      .on('mouseleave', () => { t.hidden = true; });
     g.append('text').attr('x', (d) => L + Math.max(2, x(d.soh)) + 6).attr('y', rowH / 2 - 1).attr('dy', '.35em').attr('font-size', 12).attr('font-weight', 700).style('fill', 'var(--fg)').text((d) => F(d.soh));
   }
 
-  function drawExpiry() {
-    const box = $('#expChart'); box.replaceChildren();
-    const all = M.exp.filter((r) => r.wh === st.wh);
-    const none = all.find((r) => r.month === 'none');
-    $('#noExp').textContent = F(none ? none.soh : 0);
-    const rows = all.filter((r) => r.month !== 'none').sort((a, b) => (a.month < b.month ? -1 : 1));
-    const now = new Date();
-    const cur = iso(now).slice(0, 7);
-    const plus2 = iso(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 1))).slice(0, 7);
-    const W = Math.max(280, box.clientWidth), H = 260;
-    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H).attr('role', 'img').attr('aria-label', 'SOH by expiry month');
-    if (!rows.length) return;
-    const fs = d3.format('~s');
-    const y = d3.scaleLinear([0, d3.max(rows, (r) => r.soh) || 1], [H - 26, 14]).nice();
-    const ticks = y.ticks(4);
-    const meas = (txt) => { const t = svg.append('text').attr('font-size', 11).text(txt); const w = t.node().getComputedTextLength(); t.remove(); return w; };
-    const ml = (d3.max(ticks, (v) => meas(fs(v))) || 0) + 10;
-    const x = d3.scaleBand(rows.map((r) => r.month), [ml, W - 6]).padding(0.2);
-    svg.append('g').selectAll('line').data(ticks).join('line').attr('x1', ml).attr('x2', W - 6).attr('y1', (v) => y(v)).attr('y2', (v) => y(v)).style('stroke', 'var(--line)');
-    svg.append('g').selectAll('text').data(ticks).join('text').attr('x', ml - 8).attr('y', (v) => y(v)).attr('dy', '.35em').attr('text-anchor', 'end').attr('font-size', 11).style('fill', 'var(--muted)').text((v) => fs(v));
-    const color = (m) => (m < cur ? 'var(--r)' : m <= plus2 ? 'var(--o)' : 'var(--b)');
-    const t = tipFor(box);
-    const mf = d3.utcFormat('%b %Y');
-    svg.append('g').selectAll('rect').data(rows).join('rect')
-      .attr('x', (d) => x(d.month)).attr('width', x.bandwidth()).attr('y', (d) => y(d.soh)).attr('height', (d) => Math.max(1, y(0) - y(d.soh)))
-      .attr('rx', Math.min(4, x.bandwidth() / 2)).style('fill', (d) => color(d.month))
-      .on('mousemove', (e, d) => showTip(box, t, e, mf(new Date(d.month + '-01T00:00:00Z')), F(d.soh) + ' units'))
-      .on('mouseleave', () => { t.hidden = true; });
-    let lastX = -Infinity;
-    const yl = svg.append('g');
-    rows.forEach((r, i) => {
-      if (!(i === 0 || r.month.endsWith('-01'))) return;
-      const cx = x(r.month);
-      if (cx - lastX < 40) return;
-      lastX = cx;
-      yl.append('text').attr('x', cx).attr('y', H - 8).attr('font-size', 11).style('fill', 'var(--muted)').text(r.month.slice(0, 4));
-    });
-    const first = rows.find((r) => r.month >= cur);
-    if (first) {
-      const tx = first.month === cur ? x(cur) + x.bandwidth() / 2 : x(first.month) - (x.step() * x.paddingInner()) / 2;
-      svg.append('line').attr('x1', tx).attr('x2', tx).attr('y1', 10).attr('y2', H - 26).style('stroke', 'var(--y)').style('stroke-width', 1.5).style('stroke-dasharray', '4 3');
-      const lab = svg.append('text').attr('y', 11).attr('font-size', 11).attr('font-weight', 700).style('fill', 'var(--y)').text('Now');
-      const lw = lab.node().getComputedTextLength();
-      lab.attr('x', tx + 5 + lw > W ? tx - 5 - lw : tx + 5);
-    }
-  }
+  const dateCls = (exp) => { if (!exp || !M) return ''; const d = dayDiff(exp, M.t0); return d < 0 ? 'r' : d <= 30 ? 'o' : ''; };
 
   function drawTable() {
-    const s = st.wh;
-    $('#tbl').classList.toggle('single', s !== 'All');
+    $('#tbl').classList.toggle('single', st.wh !== 'All');
     document.querySelectorAll('#tbl th').forEach((th) => {
       const k = th.querySelector('button').dataset.sort;
       if (k === st.sortKey) th.setAttribute('aria-sort', st.sortDir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
     });
-    const q = st.q.trim().toLowerCase();
-    let rows = M.sku.filter((r) => (s === 'All' || r.wh === s) && (st.family === 'All' || r.family === st.family));
-    if (q) rows = rows.filter((r) => (r.sku + ' ' + r.title).toLowerCase().includes(q));
-    rows.sort((a, b) => {
-      const va = a[st.sortKey], vb = b[st.sortKey];
-      const c = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb));
-      return c * st.sortDir || b.soh - a.soh;
-    });
+    const rows = skuView();
     const maxLoc = d3.max(rows, (r) => r.locations) || 1;
+    const lim = window.__printing ? rows.length : st.shown;
     const frag = document.createDocumentFragment();
-    rows.slice(0, st.shown).forEach((r) => {
+    rows.slice(0, lim).forEach((r) => {
       const tr = document.createElement('tr');
-      const td = (cls, txt) => { const c = document.createElement('td'); c.className = cls; c.textContent = txt; tr.append(c); return c; };
+      const td = (cls, txt) => { const c = el('td', cls, txt); tr.append(c); return c; };
       td('c-wh colwh', r.wh); td('c-sku', r.sku); td('c-title', r.title); td('c-fam hide-sm', r.family);
       td('num', F(r.soh)); td('num hide-sm', F(r.reserved));
-      const c = document.createElement('td'); c.className = 'num';
-      const wrap = document.createElement('span'); wrap.className = 'loc';
-      const track = document.createElement('span'); track.className = 'track';
-      const bar = document.createElement('i'); bar.style.width = (100 * r.locations / maxLoc) + '%';
-      track.append(bar);
-      const n = document.createElement('b'); n.textContent = F(r.locations);
-      wrap.append(track, n); c.append(wrap); tr.append(c);
+      td('c-date hide-sm ' + dateCls(r.nearest), r.nearest || '—');
+      const c = el('td', 'num');
+      const wrap = el('span', 'loc'); const track = el('span', 'track'); const bar = el('i'); bar.style.width = (100 * r.locations / maxLoc) + '%';
+      track.append(bar); wrap.append(track, el('b', '', F(r.locations))); c.append(wrap); tr.append(c);
       frag.append(tr);
     });
     $('#tbody').replaceChildren(frag);
-    $('#count').textContent = rows.length ? `Showing ${F(Math.min(st.shown, rows.length))} of ${F(rows.length)} SKU lines` : 'No SKUs match these filters.';
-    $('#more').hidden = rows.length <= st.shown;
+    $('#count').textContent = rows.length ? `Showing ${F(Math.min(lim, rows.length))} of ${F(rows.length)} SKU lines` : 'No SKUs match these filters.';
+    $('#more').hidden = rows.length <= lim;
   }
 
-  // Controls
-  const pickWh = (w) => { st.wh = w; st.shown = 200; render(); };
+  function drawPlan() {
+    const base = planBase();
+    const freed = new Set(base.filter((m) => m.frees).map((m) => m.wh + '|' + m.from));
+    const k = { moves: base.length, qty: d3.sum(base, (m) => m.qty), freed: freed.size, qw: base.filter((m) => m.pr === 1).length, hold: base.filter((m) => m.pr === 4).length };
+    document.querySelectorAll('#consol [data-p]').forEach((e) => { e.textContent = F(k[e.dataset.p]); });
+    const counts = d3.rollup(base, (v) => v.length, (m) => String(m.pr));
+    $('#prChips').replaceChildren(...['All', '1', '2', '3', '4'].map((p) => {
+      const b = el('button', 'chip', (p === 'All' ? 'All moves' : PR[p]) + ' (' + F(p === 'All' ? base.length : counts.get(p) || 0) + ')');
+      b.type = 'button'; b.dataset.pr = p; b.setAttribute('aria-pressed', String(st.pr === p));
+      return b;
+    }));
+    $('#ptbl').classList.toggle('single', st.wh !== 'All');
+    const rows = planView();
+    const lim = window.__printing ? rows.length : st.pshown;
+    const frag = document.createDocumentFragment();
+    rows.slice(0, lim).forEach((m) => {
+      const tr = document.createElement('tr');
+      const td = (cls, txt) => { const c = el('td', cls, txt); tr.append(c); return c; };
+      const p = el('td'); p.append(el('span', 'pr pr' + m.pr, PR[m.pr])); tr.append(p);
+      td('c-wh colwh', m.wh); td('c-sku', m.sku); td('c-title', m.title);
+      td('c-date ' + dateCls(m.exp), m.exp); td('num hide-sm', F(m.days));
+      const ft = el('td', 'c-loc'); ft.append(el('span', '', m.from), el('span', 'arrow', '→'), el('span', '', m.to)); tr.append(ft);
+      td('num', F(m.qty)); td('num hide-sm', F(m.reserved)); td('num hide-sm', F(m.toq));
+      td(m.frees ? 'yes' : 'no', m.frees ? 'Yes' : 'No');
+      frag.append(tr);
+    });
+    $('#ptbody').replaceChildren(frag);
+    $('#pcount').textContent = rows.length ? `Showing ${F(Math.min(lim, rows.length))} of ${F(rows.length)} moves` : 'No moves match these filters.';
+    $('#pmore').hidden = rows.length <= lim;
+  }
+
+  // ---------- exports ----------
+  const stamp = () => iso(new Date()) + '_' + new Date().toTimeString().slice(0, 5).replace(':', '');
+  const scope = () => (st.wh === 'All' ? 'All' : st.wh);
+  function downloadBlob(blob, name) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  const skuRowsOut = () => skuView().map((r) => ({ Warehouse: r.wh, SKU: r.sku, Title: r.title, Family: r.family, 'SOH qty': r.soh, 'Reserved qty': r.reserved, 'Available qty': r.soh - r.reserved, 'Nearest expiry': r.nearest, 'Unique locations': r.locations }));
+  const planRowsOut = () => planView().map((m) => ({ Priority: PR[m.pr], Warehouse: m.wh, SKU: m.sku, Title: m.title, Expiry: m.exp, 'Days to expiry': m.days, 'From location': m.from, 'Move qty': m.qty, 'Reserved qty': m.reserved, 'To location': m.to, 'Qty already at To': m.toq, 'Frees From location': m.frees ? 'Yes' : 'No' }));
+  function toCSV(rows) {
+    if (!rows.length) return '';
+    const cols = Object.keys(rows[0]);
+    const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    return '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
+  }
+  function exportCSV(kind) {
+    const rows = kind === 'plan' ? planRowsOut() : skuRowsOut();
+    downloadBlob(new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' }), `SOH_${kind === 'plan' ? 'consolidation_plan' : 'skus'}_${scope()}_${stamp()}.csv`);
+  }
+  function exportXLSX() {
+    if (!window.XLSX) { alert('Excel export could not load. Check your connection and try again.'); return; }
+    const wb = XLSX.utils.book_new();
+    const add = (name, rows) => {
+      const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Note: 'No rows for these filters' }]);
+      const cols = Object.keys(rows[0] || { Note: '' });
+      ws['!cols'] = cols.map((c) => ({ wch: Math.min(48, Math.max(c.length + 2, ...rows.slice(0, 300).map((r) => String(r[c] ?? '').length + 1))) }));
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    };
+    const filt = [['Updated', updatedLabel], ['Warehouse', st.wh], ['Family', st.family], ['Expiry filter', st.bucket ? BKL[st.bucket] : 'All'], ['Search', st.q.trim() || '—'], ['Exported', new Date().toLocaleString()]];
+    const info = XLSX.utils.aoa_to_sheet([['CAIID Stock on Hand export'], [], ...filt]);
+    info['!cols'] = [{ wch: 16 }, { wch: 40 }];
+    XLSX.utils.book_append_sheet(wb, info, 'Info');
+    add('Warehouses', M.wh.filter((r) => r.wh !== 'All').sort((a, b) => a.wh.localeCompare(b.wh)).concat(M.wh.filter((r) => r.wh === 'All')).map((r) => ({ Warehouse: r.wh === 'All' ? 'Total' : r.wh, 'SOH qty': r.soh, 'Available qty': r.available, 'Reserved qty': r.reserved, 'Unique SKUs': r.skus, 'Unique locations': r.locations, 'Expired qty': r.expired, ['Expiring in ' + NEAR_EXPIRY_DAYS + ' days']: r.expiring })));
+    add('Expiry risk', expiryRows().map((r) => ({ 'Time to expiry': r.l, 'Units': r.soh, 'Share of SOH': Math.round(r.pct * 1000) / 10 + '%', 'SKUs': r.skus })));
+    add('Families', M.fam.filter((r) => r.wh === st.wh && r.soh > 0).sort((a, b) => b.soh - a.soh).map((r) => ({ Family: r.family, 'SOH qty': r.soh })));
+    add('SKUs', skuRowsOut());
+    add('Consolidation plan', planRowsOut());
+    XLSX.writeFile(wb, `SOH_${scope()}_${stamp()}.xlsx`);
+  }
+  function exportPDF() {
+    const ok = !$('#more').hidden || !$('#pmore').hidden;
+    const total = skuView().length + planView().length;
+    if (ok && total > 3000 && !confirm('This view has ' + F(total) + ' table rows, so the PDF will be long. Continue?')) return;
+    window.__printing = true; drawTable(); drawPlan();
+    const done = () => { window.__printing = false; drawTable(); drawPlan(); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(() => window.print(), 50);
+  }
+  const menu = $('#exportMenu'), mBtn = $('#exportBtn');
+  const closeMenu = () => { menu.hidden = true; mBtn.setAttribute('aria-expanded', 'false'); };
+  mBtn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; mBtn.setAttribute('aria-expanded', String(!menu.hidden)); });
+  document.addEventListener('click', (e) => { if (!menu.contains(e.target)) closeMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+  menu.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-ex]'); if (!b) return;
+    closeMenu();
+    if (!M) { alert('The stock has not loaded yet.'); return; }
+    const k = b.dataset.ex;
+    if (k === 'pdf') exportPDF(); else if (k === 'xlsx') exportXLSX(); else exportCSV(k === 'csv-plan' ? 'plan' : 'sku');
+  });
+
+  // ---------- controls ----------
+  const resetPaging = () => { st.shown = 200; st.pshown = 200; };
+  const pickWh = (w) => { st.wh = w; resetPaging(); render(); };
   $('#chips').addEventListener('click', (e) => { const b = e.target.closest('button[data-wh]'); if (b) pickWh(b.dataset.wh); });
   $('#cards').addEventListener('click', (e) => { const b = e.target.closest('button[data-wh]'); if (b) pickWh(st.wh === b.dataset.wh ? 'All' : b.dataset.wh); });
-  $('#fam').addEventListener('change', (e) => { st.family = e.target.value; st.shown = 200; if (M) render(); });
+  $('#fam').addEventListener('change', (e) => { st.family = e.target.value; resetPaging(); if (M) render(); });
   let qt;
-  $('#q').addEventListener('input', (e) => { clearTimeout(qt); qt = setTimeout(() => { st.q = e.target.value; st.shown = 200; if (M) drawTable(); }, 200); });
-  $('#reset').addEventListener('click', () => { Object.assign(st, { wh: 'All', family: 'All', q: '', sortKey: 'locations', sortDir: -1, shown: 200 }); $('#q').value = ''; if (M) render(); });
+  $('#q').addEventListener('input', (e) => { clearTimeout(qt); qt = setTimeout(() => { st.q = e.target.value; resetPaging(); if (M) render(); }, 200); });
+  $('#expChart').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-bk]'); if (!b || !M) return;
+    st.bucket = st.bucket === b.dataset.bk ? null : b.dataset.bk; st.shown = 200; render();
+    if (st.bucket) document.getElementById('skusec').scrollIntoView();
+  });
+  $('#bucketTag').addEventListener('click', () => { st.bucket = null; st.shown = 200; render(); });
+  $('#prChips').addEventListener('click', (e) => { const b = e.target.closest('button[data-pr]'); if (b) { st.pr = b.dataset.pr; st.pshown = 200; drawPlan(); } });
+  $('#reset').addEventListener('click', () => { Object.assign(st, { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200 }); $('#q').value = ''; if (M) render(); });
   $('#more').addEventListener('click', () => { st.shown += 200; drawTable(); });
+  $('#pmore').addEventListener('click', () => { st.pshown += 200; drawPlan(); });
   $('#tbl thead').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-sort]'); if (!b || !M) return;
     const k = b.dataset.sort;
-    if (k === st.sortKey) st.sortDir = -st.sortDir; else { st.sortKey = k; st.sortDir = ['wh', 'sku', 'title', 'family'].includes(k) ? 1 : -1; }
+    if (k === st.sortKey) st.sortDir = -st.sortDir; else { st.sortKey = k; st.sortDir = ['wh', 'sku', 'title', 'family', 'nearest'].includes(k) ? 1 : -1; }
     st.shown = 200; drawTable();
   });
   $('#refresh').addEventListener('click', () => load(true));
-  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (M) { drawFamily(); drawExpiry(); } }, 150); });
+  const setHdr = () => document.documentElement.style.setProperty('--hdr', $('#hdr').offsetHeight + 'px');
+  setHdr();
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { setHdr(); if (M) drawFamily(); }, 150); });
 
   load(true);
   setInterval(() => { if (!document.hidden) load(false); }, CHECK_EVERY_SECONDS * 1000);
