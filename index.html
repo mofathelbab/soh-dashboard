@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CAIID SOH Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root{--bg:#0a1222;--panel:#0f1a2e;--panel2:#15223b;--line:#22324f;--fg:#eef2fa;--muted:#8e9bb6;--y:#ffe500;--yink:#16140a;--yd:rgba(255,229,0,.10);--g:#34d399;--gd:rgba(52,211,153,.14);--r:#f87171;--o:#fb923c;--p:#a78bfa;--b:#60a5fa;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg)}
+body{color:var(--fg);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+b{font-weight:700}
+.top{position:sticky;top:0;z-index:20;background:rgba(10,18,34,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1400px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px}
+.badge{background:var(--y);color:var(--yink);font-weight:800;font-size:18px;padding:11px 12px;border-radius:12px;line-height:1;box-shadow:0 0 0 5px var(--yd)}
+.brand{font-size:20px;font-weight:800;line-height:1.1;margin:0}
+.brand .y{color:var(--y)}
+.sub{color:var(--muted);font-size:12.5px;margin:3px 0 0}
+.top-r{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:999px;font-size:12.5px;color:var(--muted)}
+.pill b{color:var(--fg)}
+.live{border-color:rgba(52,211,153,.35);color:var(--g);font-weight:700}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--g);box-shadow:0 0 0 4px var(--gd)}
+.live.err{border-color:rgba(248,113,113,.4);color:var(--r)}
+.live.err .dot{background:var(--r);box-shadow:0 0 0 4px rgba(248,113,113,.15)}
+.live.busy .dot{animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.wrap{max-width:1400px;margin:0 auto;padding:22px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px));display:grid;gap:22px}
+.eyebrow{display:flex;align-items:center;gap:10px;color:var(--y);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 4px}
+.eyebrow::before{content:"";width:22px;height:3px;border-radius:2px;background:var(--r)}
+.h{font-size:19px;font-weight:800;margin:0}
+.h1{font-size:30px;font-weight:800;margin:0;letter-spacing:-.01em}
+.h1 .y{color:var(--y)}
+.note{color:var(--muted);font-size:13px;margin:3px 0 0}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{appearance:none;border:1px solid var(--line);background:var(--panel2);color:var(--fg);font:inherit;font-size:13px;font-weight:700;padding:8px 13px;border-radius:999px;cursor:pointer}
+.chip:hover{border-color:var(--y)}
+.chip[aria-pressed=true]{background:var(--y);color:var(--yink);border-color:var(--y)}
+.in{appearance:none;background:var(--panel2);border:1px solid var(--line);color:var(--fg);font:inherit;font-size:13px;padding:9px 12px;border-radius:10px;min-width:0}
+select.in{padding-right:28px;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 15px) 55%,calc(100% - 10px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+.search{flex:1 1 220px}
+.btn{appearance:none;border:1px solid var(--line);background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;padding:9px 13px;border-radius:10px;cursor:pointer}
+.btn:hover{color:var(--fg);border-color:var(--muted)}
+.btn.yb{background:var(--y);color:var(--yink);border-color:var(--y);font-weight:800}
+:focus-visible{outline:2px solid var(--y);outline-offset:2px}
+.sec{display:grid;gap:12px;min-width:0}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));gap:12px}
+.card{text-align:left;appearance:none;font:inherit;color:inherit;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;gap:9px;align-content:start;cursor:pointer}
+.card:hover{border-color:#3a4f78}
+.card[aria-pressed=true]{border-color:var(--y);box-shadow:inset 0 0 0 1px var(--y)}
+.card-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.wh{color:var(--y);font-weight:800;font-size:15px}
+.skus{color:var(--muted);font-size:12px}
+.skus b{color:var(--fg)}
+.big{font-size:30px;font-weight:800;line-height:1.05;letter-spacing:-.01em}
+.lbl{color:var(--muted);font-size:12px}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;display:flex}
+.bar i{display:block;height:100%;background:var(--y)}
+.bar i+i{background:var(--p)}
+.mini{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted)}
+.mini b{color:var(--fg)}
+.mini .bad b{color:var(--r)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:12px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;position:relative;overflow:hidden;display:grid;gap:6px;align-content:start}
+.kpi::before{content:"";position:absolute;left:16px;right:16px;top:0;height:3px;border-radius:0 0 3px 3px;background:var(--k)}
+.kpi .big{font-size:27px}
+.kpi .lbl{font-size:12.5px;font-weight:600}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;display:grid;gap:14px;align-content:start;min-width:0}
+.ph{display:flex;gap:12px;align-items:flex-start}
+.ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none;background:var(--ic);color:var(--icc)}
+.ico svg{width:20px;height:20px}
+.chart{position:relative;min-height:260px}
+.tip{position:absolute;pointer-events:none;background:#1b2843;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.45);white-space:nowrap;z-index:3}
+.tip span{color:var(--muted);display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.legend b{color:var(--fg)}
+.tablewrap{max-height:620px;overflow:auto;border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{position:sticky;top:0;background:var(--panel2);text-align:left;font-weight:700;color:var(--muted);padding:0;z-index:1;white-space:nowrap}
+th button{appearance:none;border:0;background:none;color:inherit;font:inherit;padding:11px 12px;cursor:pointer;width:100%;text-align:inherit}
+th[aria-sort] button{color:var(--y)}
+th[aria-sort=descending] button::after{content:" ↓"}
+th[aria-sort=ascending] button::after{content:" ↑"}
+th.num{text-align:right}
+td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:middle}
+td.num{text-align:right;white-space:nowrap}
+tbody tr:nth-child(even){background:rgba(255,255,255,.025)}
+tbody tr:hover{background:var(--yd)}
+.c-wh{font-weight:800;color:var(--y);white-space:nowrap}
+.c-sku{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.c-title{font-weight:600;min-width:180px}
+.c-fam{color:var(--muted);white-space:nowrap}
+.loc{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end}
+.track{width:64px;height:6px;background:var(--line);border-radius:3px;overflow:hidden;display:inline-block}
+.track i{display:block;height:100%;background:var(--g);border-radius:3px}
+table.single .colwh{display:none}
+@media (max-width:700px){.hide-sm{display:none}.h1{font-size:24px}}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12.5px}
+.sk{display:block;height:100%;min-height:inherit;border-radius:14px;background:linear-gradient(90deg,var(--panel2),#1b2a47,var(--panel2));background-size:200% 100%;animation:sh 1.4s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+.msg{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--muted);font-size:13px;min-height:120px;text-align:center;padding:16px;border:1px dashed var(--line);border-radius:14px}
+.msg.err::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--r);flex:none}
+@media (prefers-reduced-motion:reduce){.sk,.live.busy .dot{animation:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="badge" aria-hidden="true">SOH</div>
+    <div>
+      <p class="brand"><span class="y">CAIID</span> Stock on Hand</p>
+      <p class="sub">Item/Case inventory · CAIID01 to CAIID07</p>
+    </div>
+    <div class="top-r">
+      <span class="pill live" id="live"><span class="dot"></span><span id="liveTxt">Loading</span></span>
+      <span class="pill">Updated <b id="loadedAt">—</b></span>
+      <button class="btn yb" id="refresh" type="button">Refresh</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div>
+    <p class="eyebrow">Inventory tracking</p>
+    <h1 class="h1">Stock <span class="y">on hand</span></h1>
+    <p class="note">Showing <b id="selName" style="color:var(--y)">All warehouses</b>. Pick a warehouse card or chip to filter every section.</p>
+  </div>
+
+  <section class="sec" id="warehouses">
+    <div>
+      <h2 class="h">Warehouse overview</h2>
+      <p class="note">SOH per warehouse, split into available (yellow) and reserved (purple).</p>
+    </div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <div class="filters" id="filters">
+    <div class="chips" id="chips" role="group" aria-label="Warehouse"></div>
+    <select class="in" id="fam" aria-label="Family"><option value="All">All families</option></select>
+    <input class="in search" id="q" type="search" placeholder="Search SKU or title" aria-label="Search SKU or title">
+    <button class="btn" id="reset" type="button">Reset filters</button>
+  </div>
+
+  <section class="kpis" id="kpis">
+    <div class="kpi" style="--k:var(--y)"><span class="lbl">SOH qty</span><span class="big" data-k="soh">—</span></div>
+    <div class="kpi" style="--k:var(--g)"><span class="lbl">Available qty</span><span class="big" data-k="available">—</span></div>
+    <div class="kpi" style="--k:var(--p)"><span class="lbl">Reserved qty</span><span class="big" data-k="reserved">—</span></div>
+    <div class="kpi" style="--k:var(--b)"><span class="lbl">Unique SKUs</span><span class="big" data-k="skus">—</span></div>
+    <div class="kpi" style="--k:var(--b)"><span class="lbl">Unique locations</span><span class="big" data-k="locations">—</span></div>
+    <div class="kpi" style="--k:var(--r)"><span class="lbl">Expired qty</span><span class="big" data-k="expired">—</span></div>
+    <div class="kpi" style="--k:var(--o)"><span class="lbl">Expiring in 30 days</span><span class="big" data-k="expiring">—</span></div>
+  </section>
+
+  <div class="grid2">
+    <section class="panel" id="families">
+      <div class="ph">
+        <div class="ico" style="--ic:rgba(255,229,0,.12);--icc:var(--y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h12M4 12h16M4 18h8"/></svg></div>
+        <div><h2 class="h">SOH by family</h2><p class="note">Units on hand per product family, largest first.</p></div>
+      </div>
+      <div class="chart" id="famChart"></div>
+    </section>
+    <section class="panel" id="expiry">
+      <div class="ph">
+        <div class="ico" style="--ic:rgba(248,113,113,.14);--icc:var(--r)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></div>
+        <div><h2 class="h">Expiry profile</h2><p class="note">Units on hand by expiry month. The yellow line marks the current month.</p></div>
+      </div>
+      <div class="chart" id="expChart"></div>
+      <div class="legend"><span><i style="background:var(--r)"></i>Past months</span><span><i style="background:var(--o)"></i>This month and next 2</span><span><i style="background:var(--b)"></i>Later</span><span>No expiry date: <b id="noExp">—</b> units</span></div>
+    </section>
+  </div>
+
+  <section class="panel" id="skusec">
+    <div class="ph">
+      <div class="ico" style="--ic:rgba(52,211,153,.14);--icc:var(--g)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 10h16M10 10v10"/></svg></div>
+      <div><h2 class="h">SKU consolidation</h2><p class="note">SOH and unique locations for each SKU in each warehouse, most locations first. Click a column to sort.</p></div>
+    </div>
+    <div class="tablewrap">
+      <table id="tbl">
+        <thead><tr>
+          <th class="colwh"><button type="button" data-sort="wh">Warehouse</button></th>
+          <th><button type="button" data-sort="sku">SKU</button></th>
+          <th><button type="button" data-sort="title">Title</button></th>
+          <th class="hide-sm"><button type="button" data-sort="family">Family</button></th>
+          <th class="num"><button type="button" data-sort="soh">SOH qty</button></th>
+          <th class="num hide-sm"><button type="button" data-sort="reserved">Reserved</button></th>
+          <th class="num"><button type="button" data-sort="locations">Unique locations</button></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="foot"><span id="count"></span><button class="btn" id="more" type="button" hidden>Show 200 more</button></div>
+  </section>
+</main>
+
+<script>
+/* =====================================================================
+   SETTINGS
+   The stock comes from the "Refresh SOH" bookmark on the report page,
+   which saves every pull to Supabase. This page only reads it (read-only key).
+   ===================================================================== */
+const SB_URL = 'https://zjqjdfbylnplwsavvonh.supabase.co';
+const SB_READ_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqcWpkZmJ5bG5wbHdzYXZ2b25oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5MDI1NzIsImV4cCI6MjEwNzQ3ODU3Mn0.KJxS5FHFpQz-eQGQzO8yI0il8uNPrjKfXAEBStfcmjk';
+// Fallback when no bookmark pull is saved yet: the published CSV of the sheet's Data tab.
+const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSRcYdKomXzzt5njQ6ChehJaOjYJj61mlEObBM_ARGXugy_jk4iRQucj-7k0GEBlb0W9khoKPq1LUSy/pub?gid=0&single=true&output=csv';
+const NEAR_EXPIRY_DAYS = 30;
+const CHECK_EVERY_SECONDS = 60;
+
+(function () {
+  const F = d3.format(',');
+  const $ = (s) => document.querySelector(s);
+  const st = { wh: 'All', family: 'All', q: '', sortKey: 'locations', sortDir: -1, shown: 200 };
+  let M = null; // aggregated model
+  let lastAt = null;
+  const H = { apikey: SB_READ_KEY, Authorization: 'Bearer ' + SB_READ_KEY };
+  const API = SB_URL + '/rest/v1/soh_snapshots?id=eq.1&select=';
+
+  const iso = (d) => d.toISOString().slice(0, 10);
+
+  function build(rows) {
+    const today = new Date();
+    const t0 = iso(today);
+    const t1 = iso(new Date(today.getTime() + NEAR_EXPIRY_DAYS * 864e5));
+    const byWh = new Map(), byFam = new Map(), byExp = new Map(), sku = new Map();
+    const W = (k) => {
+      let o = byWh.get(k);
+      if (!o) { o = { wh: k, soh: 0, reserved: 0, expired: 0, expiring: 0, skus: new Set(), locs: new Set() }; byWh.set(k, o); }
+      return o;
+    };
+    const addN = (m, k, q) => m.set(k, (m.get(k) || 0) + q);
+    for (const r of rows) {
+      const wh = r.partner_warehouse_code;
+      if (!wh) continue;
+      const qty = +String(r.qty || '').replace(/,/g, '') || 0;
+      const res = +String(r.qty_reserved || '').replace(/,/g, '') || 0;
+      const exp = String(r.expiry_date || '').slice(0, 10);
+      const valid = /^\d{4}-\d{2}-\d{2}$/.test(exp);
+      const fam = r.family_code || '(no family)';
+      const month = valid ? exp.slice(0, 7) : 'none';
+      for (const k of [wh, 'All']) {
+        const o = W(k);
+        o.soh += qty; o.reserved += res;
+        o.skus.add(r.sku); o.locs.add(wh + '|' + r.location_code);
+        if (valid && exp < t0) o.expired += qty;
+        if (valid && exp >= t0 && exp <= t1) o.expiring += qty;
+        addN(byFam, k + '|' + fam, qty);
+        addN(byExp, k + '|' + month, qty);
+      }
+      const key = wh + '|' + r.sku;
+      let s = sku.get(key);
+      if (!s) { s = { wh, sku: r.sku, title: r.title, family: fam, soh: 0, reserved: 0, locs: new Set() }; sku.set(key, s); }
+      s.soh += qty; s.reserved += res; s.locs.add(r.location_code);
+    }
+    const split = (m) => [...m].map(([k, v]) => { const i = k.indexOf('|'); return [k.slice(0, i), k.slice(i + 1), v]; });
+    return {
+      wh: [...byWh.values()].map((o) => ({ wh: o.wh, soh: o.soh, reserved: o.reserved, available: o.soh - o.reserved, skus: o.skus.size, locations: o.locs.size, expired: o.expired, expiring: o.expiring })),
+      fam: split(byFam).map(([wh, family, soh]) => ({ wh, family, soh })),
+      exp: split(byExp).map(([wh, month, soh]) => ({ wh, month, soh })),
+      sku: [...sku.values()].map((s) => ({ wh: s.wh, sku: s.sku, title: s.title, family: s.family, soh: s.soh, reserved: s.reserved, locations: s.locs.size })),
+      lines: rows.length,
+    };
+  }
+
+  function setLive(state, txt) {
+    const l = $('#live');
+    l.classList.toggle('err', state === 'err');
+    l.classList.toggle('busy', state === 'busy');
+    $('#liveTxt').textContent = txt;
+  }
+
+  function placeholders(text, err) {
+    const mk = () => { const d = document.createElement('div'); d.className = text ? 'msg' + (err ? ' err' : '') : 'sk'; if (text) d.textContent = text; return d; };
+    $('#cards').replaceChildren(mk());
+    $('#famChart').replaceChildren(mk());
+    $('#expChart').replaceChildren(mk());
+    $('#tbody').replaceChildren();
+    $('#count').textContent = text || 'Loading…';
+  }
+
+  const when = (t) => new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+  let fromSheet = false, sheetAt = 0;
+
+  async function loadSheet() {
+    const res = await fetch(SHEET_CSV_URL + '&_=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('The sheet answered ' + res.status);
+    const text = await res.text();
+    if (/^\s*</.test(text)) throw new Error('The sheet link returned a web page, not CSV.');
+    const rows = d3.csvParse(text);
+    if (!rows.columns.includes('partner_warehouse_code') || !rows.columns.includes('qty')) throw new Error('The sheet CSV has no partner_warehouse_code or qty column.');
+    M = build(rows);
+    fromSheet = true; sheetAt = Date.now(); lastAt = null;
+    $('#loadedAt').textContent = 'from sheet, ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setLive('ok', 'LIVE');
+    render();
+  }
+
+  async function load(force) {
+    if (M) setLive('busy', 'Checking');
+    else { setLive('busy', 'Loading'); placeholders(); }
+    try {
+      let snap = null;
+      try {
+        if (M && !force && !fromSheet) {
+          const r = await fetch(API + 'updated_at', { headers: H, cache: 'no-store' });
+          if (r.ok) { const j = await r.json(); if (j[0] && j[0].updated_at === lastAt) { setLive('ok', 'LIVE'); return; } }
+        }
+        const res = await fetch(API + 'updated_at,row_count,cols,rows', { headers: H, cache: 'no-store' });
+        if (res.ok) { const j = await res.json(); snap = j[0] || null; }
+      } catch (e) { snap = null; }
+      if (snap) {
+        const { cols, rows, updated_at } = snap;
+        M = build(rows.map((a) => Object.fromEntries(cols.map((c, i) => [c, a[i]]))));
+        fromSheet = false; lastAt = updated_at;
+        $('#loadedAt').textContent = when(updated_at);
+        setLive('ok', 'LIVE');
+        render();
+        return;
+      }
+      // No bookmark pull saved yet: read the published sheet (at most every 5 minutes unless forced).
+      if (M && fromSheet && !force && Date.now() - sheetAt < 300000) { setLive('ok', 'LIVE'); return; }
+      await loadSheet();
+    } catch (e) {
+      setLive('err', 'Load failed');
+      if (!M) placeholders('Could not load the stock. ' + e.message, true);
+    }
+  }
+
+  const fail = () => !M;
+
+  function render() {
+    if (fail()) return;
+    const s = st.wh;
+    $('#selName').textContent = s === 'All' ? 'All warehouses' : s;
+    drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawFamily(); drawExpiry(); drawTable();
+  }
+
+  function drawChips() {
+    const whs = M.wh.filter((r) => r.wh !== 'All').map((r) => r.wh).sort();
+    $('#chips').replaceChildren(...['All', ...whs].map((w) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.dataset.wh = w;
+      b.textContent = w === 'All' ? 'All warehouses' : w;
+      b.setAttribute('aria-pressed', String(w === st.wh));
+      return b;
+    }));
+  }
+
+  function drawCards() {
+    const rows = M.wh.filter((r) => r.wh !== 'All').sort((a, b) => a.wh.localeCompare(b.wh));
+    $('#cards').replaceChildren(...rows.map((r) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'card'; b.dataset.wh = r.wh;
+      b.setAttribute('aria-pressed', String(r.wh === st.wh));
+      const tot = r.soh || 1;
+      const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+      const top = el('div', 'card-top');
+      const sk = el('span', 'skus'); sk.append(el('b', '', F(r.skus)), ' SKUs');
+      top.append(el('span', 'wh', r.wh), sk);
+      const bar = el('div', 'bar');
+      const i1 = el('i'); i1.style.width = (100 * r.available / tot) + '%';
+      const i2 = el('i'); i2.style.width = (100 * r.reserved / tot) + '%';
+      bar.append(i1, i2);
+      const mini = el('div', 'mini');
+      const part = (v, label, cls) => { const sp = el('span', cls || ''); sp.append(el('b', '', F(v)), ' ' + label); return sp; };
+      mini.append(part(r.available, 'available'), part(r.reserved, 'reserved'), part(r.locations, 'locations'), part(r.expired, 'expired', r.expired > 0 ? 'bad' : ''));
+      b.append(top, el('div', 'big', F(r.soh)), el('div', 'lbl', 'SOH qty'), bar, mini);
+      return b;
+    }));
+  }
+
+  function drawFamFilter() {
+    const f = $('#fam');
+    const fams = [...new Set(M.fam.filter((r) => r.wh === 'All').map((r) => r.family))].sort();
+    f.replaceChildren(new Option('All families', 'All'), ...fams.map((x) => new Option(x, x)));
+    f.value = fams.includes(st.family) ? st.family : 'All';
+  }
+
+  function drawKpis() {
+    const r = M.wh.find((x) => x.wh === st.wh) || {};
+    document.querySelectorAll('.kpi [data-k]').forEach((el) => { const v = r[el.dataset.k]; el.textContent = v == null ? '—' : F(v); });
+  }
+
+  const tipFor = (box) => { const t = document.createElement('div'); t.className = 'tip'; t.hidden = true; box.append(t); return t; };
+  const showTip = (box, t, e, head, body) => {
+    t.replaceChildren(); const h = document.createElement('span'); h.textContent = head; const b = document.createElement('b'); b.textContent = body; t.append(h, b); t.hidden = false;
+    const r = box.getBoundingClientRect(); let x = e.clientX - r.left + 12; const tw = t.offsetWidth;
+    if (x + tw > r.width) x = Math.max(0, e.clientX - r.left - tw - 12);
+    t.style.left = x + 'px'; t.style.top = Math.max(0, e.clientY - r.top - 10) + 'px';
+  };
+
+  function drawFamily() {
+    const box = $('#famChart'); box.replaceChildren();
+    const rows = M.fam.filter((r) => r.wh === st.wh && r.soh > 0).sort((a, b) => b.soh - a.soh);
+    const W = Math.max(280, box.clientWidth), rowH = 28, H = Math.max(40, rows.length * rowH + 6);
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H).attr('role', 'img').attr('aria-label', 'SOH by family');
+    const meas = (txt, bold) => { const t = svg.append('text').attr('font-size', 12).attr('font-weight', bold ? 700 : 400).text(txt); const w = t.node().getComputedTextLength(); t.remove(); return w; };
+    const lw = d3.max(rows, (r) => meas(r.family)) || 0;
+    const vw = d3.max(rows, (r) => meas(F(r.soh), true)) || 0;
+    const L = Math.min(lw + 12, W * 0.45), R = vw + 12;
+    const x = d3.scaleLinear([0, d3.max(rows, (r) => r.soh) || 1], [0, Math.max(10, W - L - R)]);
+    const t = tipFor(box);
+    const g = svg.selectAll('g.r').data(rows).join('g').attr('class', 'r').attr('transform', (d, i) => `translate(0,${i * rowH + 3})`);
+    g.append('text').attr('x', L - 10).attr('y', rowH / 2 - 1).attr('dy', '.35em').attr('text-anchor', 'end').attr('font-size', 12).style('fill', 'var(--muted)').text((d) => d.family);
+    g.append('rect').attr('x', L).attr('y', 5).attr('height', rowH - 12).attr('rx', 4).attr('width', (d) => Math.max(2, x(d.soh)))
+      .style('fill', (d, i) => (i === 0 ? 'var(--y)' : 'var(--b)')).style('fill-opacity', (d, i) => (i === 0 ? 1 : 0.7)).style('cursor', 'pointer')
+      .on('mousemove', (e, d) => showTip(box, t, e, d.family, F(d.soh) + ' units'))
+      .on('mouseleave', () => { t.hidden = true; })
+      .on('click', (e, d) => { st.family = d.family; st.shown = 200; render(); document.getElementById('skusec').scrollIntoView({ behavior: 'smooth' }); });
+    g.append('text').attr('x', (d) => L + Math.max(2, x(d.soh)) + 6).attr('y', rowH / 2 - 1).attr('dy', '.35em').attr('font-size', 12).attr('font-weight', 700).style('fill', 'var(--fg)').text((d) => F(d.soh));
+  }
+
+  function drawExpiry() {
+    const box = $('#expChart'); box.replaceChildren();
+    const all = M.exp.filter((r) => r.wh === st.wh);
+    const none = all.find((r) => r.month === 'none');
+    $('#noExp').textContent = F(none ? none.soh : 0);
+    const rows = all.filter((r) => r.month !== 'none').sort((a, b) => (a.month < b.month ? -1 : 1));
+    const now = new Date();
+    const cur = iso(now).slice(0, 7);
+    const plus2 = iso(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 1))).slice(0, 7);
+    const W = Math.max(280, box.clientWidth), H = 260;
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H).attr('role', 'img').attr('aria-label', 'SOH by expiry month');
+    if (!rows.length) return;
+    const fs = d3.format('~s');
+    const y = d3.scaleLinear([0, d3.max(rows, (r) => r.soh) || 1], [H - 26, 14]).nice();
+    const ticks = y.ticks(4);
+    const meas = (txt) => { const t = svg.append('text').attr('font-size', 11).text(txt); const w = t.node().getComputedTextLength(); t.remove(); return w; };
+    const ml = (d3.max(ticks, (v) => meas(fs(v))) || 0) + 10;
+    const x = d3.scaleBand(rows.map((r) => r.month), [ml, W - 6]).padding(0.2);
+    svg.append('g').selectAll('line').data(ticks).join('line').attr('x1', ml).attr('x2', W - 6).attr('y1', (v) => y(v)).attr('y2', (v) => y(v)).style('stroke', 'var(--line)');
+    svg.append('g').selectAll('text').data(ticks).join('text').attr('x', ml - 8).attr('y', (v) => y(v)).attr('dy', '.35em').attr('text-anchor', 'end').attr('font-size', 11).style('fill', 'var(--muted)').text((v) => fs(v));
+    const color = (m) => (m < cur ? 'var(--r)' : m <= plus2 ? 'var(--o)' : 'var(--b)');
+    const t = tipFor(box);
+    const mf = d3.utcFormat('%b %Y');
+    svg.append('g').selectAll('rect').data(rows).join('rect')
+      .attr('x', (d) => x(d.month)).attr('width', x.bandwidth()).attr('y', (d) => y(d.soh)).attr('height', (d) => Math.max(1, y(0) - y(d.soh)))
+      .attr('rx', Math.min(4, x.bandwidth() / 2)).style('fill', (d) => color(d.month))
+      .on('mousemove', (e, d) => showTip(box, t, e, mf(new Date(d.month + '-01T00:00:00Z')), F(d.soh) + ' units'))
+      .on('mouseleave', () => { t.hidden = true; });
+    let lastX = -Infinity;
+    const yl = svg.append('g');
+    rows.forEach((r, i) => {
+      if (!(i === 0 || r.month.endsWith('-01'))) return;
+      const cx = x(r.month);
+      if (cx - lastX < 40) return;
+      lastX = cx;
+      yl.append('text').attr('x', cx).attr('y', H - 8).attr('font-size', 11).style('fill', 'var(--muted)').text(r.month.slice(0, 4));
+    });
+    const first = rows.find((r) => r.month >= cur);
+    if (first) {
+      const tx = first.month === cur ? x(cur) + x.bandwidth() / 2 : x(first.month) - (x.step() * x.paddingInner()) / 2;
+      svg.append('line').attr('x1', tx).attr('x2', tx).attr('y1', 10).attr('y2', H - 26).style('stroke', 'var(--y)').style('stroke-width', 1.5).style('stroke-dasharray', '4 3');
+      const lab = svg.append('text').attr('y', 11).attr('font-size', 11).attr('font-weight', 700).style('fill', 'var(--y)').text('Now');
+      const lw = lab.node().getComputedTextLength();
+      lab.attr('x', tx + 5 + lw > W ? tx - 5 - lw : tx + 5);
+    }
+  }
+
+  function drawTable() {
+    const s = st.wh;
+    $('#tbl').classList.toggle('single', s !== 'All');
+    document.querySelectorAll('#tbl th').forEach((th) => {
+      const k = th.querySelector('button').dataset.sort;
+      if (k === st.sortKey) th.setAttribute('aria-sort', st.sortDir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
+    });
+    const q = st.q.trim().toLowerCase();
+    let rows = M.sku.filter((r) => (s === 'All' || r.wh === s) && (st.family === 'All' || r.family === st.family));
+    if (q) rows = rows.filter((r) => (r.sku + ' ' + r.title).toLowerCase().includes(q));
+    rows.sort((a, b) => {
+      const va = a[st.sortKey], vb = b[st.sortKey];
+      const c = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb));
+      return c * st.sortDir || b.soh - a.soh;
+    });
+    const maxLoc = d3.max(rows, (r) => r.locations) || 1;
+    const frag = document.createDocumentFragment();
+    rows.slice(0, st.shown).forEach((r) => {
+      const tr = document.createElement('tr');
+      const td = (cls, txt) => { const c = document.createElement('td'); c.className = cls; c.textContent = txt; tr.append(c); return c; };
+      td('c-wh colwh', r.wh); td('c-sku', r.sku); td('c-title', r.title); td('c-fam hide-sm', r.family);
+      td('num', F(r.soh)); td('num hide-sm', F(r.reserved));
+      const c = document.createElement('td'); c.className = 'num';
+      const wrap = document.createElement('span'); wrap.className = 'loc';
+      const track = document.createElement('span'); track.className = 'track';
+      const bar = document.createElement('i'); bar.style.width = (100 * r.locations / maxLoc) + '%';
+      track.append(bar);
+      const n = document.createElement('b'); n.textContent = F(r.locations);
+      wrap.append(track, n); c.append(wrap); tr.append(c);
+      frag.append(tr);
+    });
+    $('#tbody').replaceChildren(frag);
+    $('#count').textContent = rows.length ? `Showing ${F(Math.min(st.shown, rows.length))} of ${F(rows.length)} SKU lines` : 'No SKUs match these filters.';
+    $('#more').hidden = rows.length <= st.shown;
+  }
+
+  // Controls
+  const pickWh = (w) => { st.wh = w; st.shown = 200; render(); };
+  $('#chips').addEventListener('click', (e) => { const b = e.target.closest('button[data-wh]'); if (b) pickWh(b.dataset.wh); });
+  $('#cards').addEventListener('click', (e) => { const b = e.target.closest('button[data-wh]'); if (b) pickWh(st.wh === b.dataset.wh ? 'All' : b.dataset.wh); });
+  $('#fam').addEventListener('change', (e) => { st.family = e.target.value; st.shown = 200; if (M) render(); });
+  let qt;
+  $('#q').addEventListener('input', (e) => { clearTimeout(qt); qt = setTimeout(() => { st.q = e.target.value; st.shown = 200; if (M) drawTable(); }, 200); });
+  $('#reset').addEventListener('click', () => { Object.assign(st, { wh: 'All', family: 'All', q: '', sortKey: 'locations', sortDir: -1, shown: 200 }); $('#q').value = ''; if (M) render(); });
+  $('#more').addEventListener('click', () => { st.shown += 200; drawTable(); });
+  $('#tbl thead').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-sort]'); if (!b || !M) return;
+    const k = b.dataset.sort;
+    if (k === st.sortKey) st.sortDir = -st.sortDir; else { st.sortKey = k; st.sortDir = ['wh', 'sku', 'title', 'family'].includes(k) ? 1 : -1; }
+    st.shown = 200; drawTable();
+  });
+  $('#refresh').addEventListener('click', () => load(true));
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (M) { drawFamily(); drawExpiry(); } }, 150); });
+
+  load(true);
+  setInterval(() => { if (!document.hidden) load(false); }, CHECK_EVERY_SECONDS * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && M) load(false); });
+})();
+</script>
+</body>
+</html>
