@@ -139,6 +139,10 @@ tbody tr:hover{background:var(--yd)}
 .pr3{background:rgba(96,165,250,.16);color:var(--b)}
 .pr4{background:rgba(167,139,250,.16);color:var(--p)}
 .yes{color:var(--g);font-weight:700}.no{color:var(--muted)}
+.zt{display:inline-block;font-size:11.5px;font-weight:800;padding:4px 9px;border-radius:999px;white-space:nowrap}
+.zt.live{background:rgba(248,113,113,.16);color:var(--r)}
+.zt.held{background:rgba(52,211,153,.16);color:var(--g)}
+.zt.unk{background:rgba(142,155,182,.16);color:var(--muted)}
 table.single .colwh{display:none}
 @media (max-width:760px){.hide-sm{display:none}.h1{font-size:24px}.filters{position:static}}
 .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:12.5px}
@@ -155,7 +159,7 @@ html{scroll-behavior:smooth}
   @page{size:A4 landscape;margin:10mm}
   body{font-size:11px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .top{position:static;backdrop-filter:none}
-  .nav,.filters,.top-r .btn,.menu,#more,#pmore,.no-print{display:none!important}
+  .nav,.filters,.top-r .btn,.menu,#more,#pmore,#lmore,.no-print{display:none!important}
   .print-only{display:block}
   .tablewrap{max-height:none;overflow:visible}
   th{position:static}
@@ -184,6 +188,7 @@ html{scroll-behavior:smooth}
           <button type="button" data-ex="xlsx">Export as Excel<span>All sections, current filters, one sheet each</span></button>
           <button type="button" data-ex="csv-sku">Export SKUs as CSV<span>SKU table with current filters</span></button>
           <button type="button" data-ex="csv-plan">Export plan as CSV<span>Consolidation moves with current filters</span></button>
+          <button type="button" data-ex="csv-loc">Export expiry locations as CSV<span>Pick an expiry row first; lists its locations</span></button>
         </div>
       </div>
       <button class="btn yb" id="refresh" type="button">Refresh</button>
@@ -243,6 +248,38 @@ html{scroll-behavior:smooth}
       <div class="chart" id="famChart"></div>
     </section>
   </div>
+
+  <section class="panel" id="exploc" hidden>
+    <div class="ph">
+      <div class="ico" style="--ic:rgba(248,113,113,.14);--icc:var(--r)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></div>
+      <div><h2 class="h" id="explocTitle">Locations</h2><p class="note">Every location holding stock in this expiry group, nearest expiry first. Stock in a live zone (STOCK-S) can still be picked, so pull it before it goes out on an order.</p></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi" style="--k:var(--r)"><span class="lbl">Locations</span><span class="big" data-l="locs">—</span></div>
+      <div class="kpi" style="--k:var(--o)"><span class="lbl">Units</span><span class="big" data-l="qty">—</span></div>
+      <div class="kpi" style="--k:var(--r)"><span class="lbl">Units in live pickable zones</span><span class="big" data-l="live">—</span></div>
+      <div class="kpi" style="--k:var(--p)"><span class="lbl">Reserved units</span><span class="big" data-l="res">—</span></div>
+      <div class="kpi" style="--k:var(--b)"><span class="lbl">SKUs</span><span class="big" data-l="skus">—</span></div>
+    </div>
+    <div class="tablewrap">
+      <table id="ltbl">
+        <thead><tr>
+          <th class="plain colwh">Warehouse</th>
+          <th class="plain">Location</th>
+          <th class="plain">Zone</th>
+          <th class="plain">Zone type</th>
+          <th class="plain">SKU</th>
+          <th class="plain">Title</th>
+          <th class="plain">Expiry</th>
+          <th class="plain num hide-sm">Days</th>
+          <th class="plain num">Qty</th>
+          <th class="plain num hide-sm">Reserved</th>
+        </tr></thead>
+        <tbody id="ltbody"></tbody>
+      </table>
+    </div>
+    <div class="foot"><span id="lcount"></span><button class="btn" id="lmore" type="button" hidden>Show 200 more</button></div>
+  </section>
 
   <section class="panel" id="skusec">
     <div class="ph">
@@ -331,7 +368,7 @@ const CHECK_EVERY_SECONDS = 60;
   ];
   const BKL = Object.fromEntries(BK.map((b) => [b.k, b.l]));
   const PR = { 1: '1 Quick win', 2: '2 Frees location', 3: '3 Merge only', 4: '4 Wait: reserved' };
-  const st = { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200 };
+  const st = { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200, lshown: 200 };
   let M = null;
   let lastAt = null, updatedLabel = '';
   const H = { apikey: SB_READ_KEY, Authorization: 'Bearer ' + SB_READ_KEY };
@@ -354,7 +391,7 @@ const CHECK_EVERY_SECONDS = 60;
   function build(rows) {
     const t0 = iso(new Date());
     const byWh = new Map(), byFam = new Map(), byBk = new Map(), sku = new Map();
-    const L = new Map(), keep = new Set();
+    const L = new Map(), keep = new Set(), lines = [];
     const W = (k) => { let o = byWh.get(k); if (!o) { o = { wh: k, soh: 0, reserved: 0, expired: 0, expiring: 0, skus: new Set(), locs: new Set() }; byWh.set(k, o); } return o; };
     const B = (k) => { let o = byBk.get(k); if (!o) { o = { soh: 0, skus: new Set() }; byBk.set(k, o); } return o; };
     const addN = (m, k, q) => m.set(k, (m.get(k) || 0) + q);
@@ -382,6 +419,7 @@ const CHECK_EVERY_SECONDS = 60;
       if (!s) { s = { wh, sku: r.sku, title: r.title, family: fam, soh: 0, reserved: 0, locs: new Set(), bk: new Set(), nearest: '' }; sku.set(key, s); }
       s.soh += qty; s.reserved += res; s.locs.add(loc); s.bk.add(bk);
       if (exp && (!s.nearest || exp < s.nearest)) s.nearest = exp;
+      lines.push({ wh, loc, zone: r.zone_code || '', sku: r.sku, title: r.title, family: fam, exp, bk, days: exp ? dayDiff(exp, t0) : null, qty, res });
       // consolidation plan input
       if (!exp || exp < t0) { keep.add(wh + '|' + loc); continue; }
       const lk = [wh, r.sku, exp, loc].join('|');
@@ -412,6 +450,7 @@ const CHECK_EVERY_SECONDS = 60;
       bk: byBk,
       sku: [...sku.values()].map((s) => ({ wh: s.wh, sku: s.sku, title: s.title, family: s.family, soh: s.soh, reserved: s.reserved, locations: s.locs.size, bk: s.bk, nearest: s.nearest })),
       moves,
+      lines,
     };
   }
 
@@ -498,6 +537,15 @@ const CHECK_EVERY_SECONDS = 60;
     return M.moves.filter((m) => (st.wh === 'All' || m.wh === st.wh) && (st.family === 'All' || m.family === st.family) && matchQ(q, m.sku, m.title, m.from, m.to));
   }
   const planView = () => planBase().filter((m) => st.pr === 'All' || String(m.pr) === st.pr);
+  const zoneType = (z) => (!z ? 'unk' : /^STOCK/i.test(z) ? 'live' : 'held');
+  const ZT = { live: 'Live · pickable', held: 'Not live', unk: 'Unknown' };
+  function locView() {
+    if (!st.bucket) return [];
+    const q = st.q.trim().toLowerCase();
+    return M.lines
+      .filter((l) => l.bk === st.bucket && (st.wh === 'All' || l.wh === st.wh) && (st.family === 'All' || l.family === st.family) && matchQ(q, l.sku, l.title, l.loc))
+      .sort((a, b) => (a.days ?? 1e9) - (b.days ?? 1e9) || b.qty - a.qty || a.loc.localeCompare(b.loc));
+  }
 
   function render() {
     if (!M) return;
@@ -510,7 +558,39 @@ const CHECK_EVERY_SECONDS = 60;
     const tag = $('#bucketTag');
     tag.hidden = !st.bucket;
     tag.textContent = st.bucket ? 'Expiry: ' + BKL[st.bucket] + ' ×' : '';
-    drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawExpiry(); drawFamily(); drawTable(); drawPlan();
+    drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawExpiry(); drawFamily(); drawLocs(); drawTable(); drawPlan();
+  }
+
+  function drawLocs() {
+    const sec = $('#exploc');
+    sec.hidden = !st.bucket;
+    if (!st.bucket) return;
+    $('#explocTitle').textContent = 'Locations with ' + (st.bucket === 'exp' ? 'expired' : st.bucket === 'none' ? 'no-expiry-date' : BKL[st.bucket]) + ' stock';
+    const rows = locView();
+    const k = {
+      locs: new Set(rows.map((l) => l.wh + '|' + l.loc)).size,
+      qty: d3.sum(rows, (l) => l.qty),
+      live: d3.sum(rows.filter((l) => zoneType(l.zone) === 'live'), (l) => l.qty),
+      res: d3.sum(rows, (l) => l.res),
+      skus: new Set(rows.map((l) => l.wh + '|' + l.sku)).size,
+    };
+    document.querySelectorAll('#exploc [data-l]').forEach((e) => { e.textContent = F(k[e.dataset.l]); });
+    $('#ltbl').classList.toggle('single', st.wh !== 'All');
+    const lim = window.__printing ? rows.length : st.lshown;
+    const frag = document.createDocumentFragment();
+    rows.slice(0, lim).forEach((l) => {
+      const tr = document.createElement('tr');
+      const td = (cls, txt) => { const c = el('td', cls, txt); tr.append(c); return c; };
+      td('c-wh colwh', l.wh); td('c-loc', l.loc); td('c-fam', l.zone || '—');
+      const z = el('td'); const t = zoneType(l.zone); z.append(el('span', 'zt ' + t, ZT[t])); tr.append(z);
+      td('c-sku', l.sku); td('c-title', l.title);
+      td('c-date ' + dateCls(l.exp), l.exp || '—'); td('num hide-sm', l.days == null ? '—' : F(l.days));
+      td('num', F(l.qty)); td('num hide-sm', F(l.res));
+      frag.append(tr);
+    });
+    $('#ltbody').replaceChildren(frag);
+    $('#lcount').textContent = rows.length ? `Showing ${F(Math.min(lim, rows.length))} of ${F(rows.length)} location lines` : 'No locations match these filters.';
+    $('#lmore').hidden = rows.length <= lim;
   }
 
   function drawChips() {
@@ -687,9 +767,12 @@ const CHECK_EVERY_SECONDS = 60;
     const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     return '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
   }
+  const locRowsOut = () => locView().map((l) => ({ Warehouse: l.wh, Location: l.loc, Zone: l.zone, 'Zone type': ZT[zoneType(l.zone)], SKU: l.sku, Title: l.title, Expiry: l.exp, 'Days to expiry': l.days, Qty: l.qty, 'Reserved qty': l.res }));
   function exportCSV(kind) {
-    const rows = kind === 'plan' ? planRowsOut() : skuRowsOut();
-    downloadBlob(new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' }), `SOH_${kind === 'plan' ? 'consolidation_plan' : 'skus'}_${scope()}_${stamp()}.csv`);
+    if (kind === 'loc' && !st.bucket) { alert('Click an expiry row first (for example Expired), then export its locations.'); return; }
+    const rows = kind === 'plan' ? planRowsOut() : kind === 'loc' ? locRowsOut() : skuRowsOut();
+    const name = kind === 'plan' ? 'consolidation_plan' : kind === 'loc' ? 'locations_' + st.bucket : 'skus';
+    downloadBlob(new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' }), `SOH_${name}_${scope()}_${stamp()}.csv`);
   }
   function exportXLSX() {
     if (!window.XLSX) { alert('Excel export could not load. Check your connection and try again.'); return; }
@@ -707,6 +790,7 @@ const CHECK_EVERY_SECONDS = 60;
     add('Warehouses', M.wh.filter((r) => r.wh !== 'All').sort((a, b) => a.wh.localeCompare(b.wh)).concat(M.wh.filter((r) => r.wh === 'All')).map((r) => ({ Warehouse: r.wh === 'All' ? 'Total' : r.wh, 'SOH qty': r.soh, 'Available qty': r.available, 'Reserved qty': r.reserved, 'Unique SKUs': r.skus, 'Unique locations': r.locations, 'Expired qty': r.expired, ['Expiring in ' + NEAR_EXPIRY_DAYS + ' days']: r.expiring })));
     add('Expiry risk', expiryRows().map((r) => ({ 'Time to expiry': r.l, 'Units': r.soh, 'Share of SOH': Math.round(r.pct * 1000) / 10 + '%', 'SKUs': r.skus })));
     add('Families', M.fam.filter((r) => r.wh === st.wh && r.soh > 0).sort((a, b) => b.soh - a.soh).map((r) => ({ Family: r.family, 'SOH qty': r.soh })));
+    if (st.bucket) add('Expiry locations', locRowsOut());
     add('SKUs', skuRowsOut());
     add('Consolidation plan', planRowsOut());
     XLSX.writeFile(wb, `SOH_${scope()}_${stamp()}.xlsx`);
@@ -715,8 +799,8 @@ const CHECK_EVERY_SECONDS = 60;
     const ok = !$('#more').hidden || !$('#pmore').hidden;
     const total = skuView().length + planView().length;
     if (ok && total > 3000 && !confirm('This view has ' + F(total) + ' table rows, so the PDF will be long. Continue?')) return;
-    window.__printing = true; drawTable(); drawPlan();
-    const done = () => { window.__printing = false; drawTable(); drawPlan(); window.removeEventListener('afterprint', done); };
+    window.__printing = true; drawLocs(); drawTable(); drawPlan();
+    const done = () => { window.__printing = false; drawLocs(); drawTable(); drawPlan(); window.removeEventListener('afterprint', done); };
     window.addEventListener('afterprint', done);
     setTimeout(() => window.print(), 50);
   }
@@ -730,11 +814,11 @@ const CHECK_EVERY_SECONDS = 60;
     closeMenu();
     if (!M) { alert('The stock has not loaded yet.'); return; }
     const k = b.dataset.ex;
-    if (k === 'pdf') exportPDF(); else if (k === 'xlsx') exportXLSX(); else exportCSV(k === 'csv-plan' ? 'plan' : 'sku');
+    if (k === 'pdf') exportPDF(); else if (k === 'xlsx') exportXLSX(); else exportCSV(k === 'csv-plan' ? 'plan' : k === 'csv-loc' ? 'loc' : 'sku');
   });
 
   // ---------- controls ----------
-  const resetPaging = () => { st.shown = 200; st.pshown = 200; };
+  const resetPaging = () => { st.shown = 200; st.pshown = 200; st.lshown = 200; };
   const pickWh = (w) => { st.wh = w; resetPaging(); render(); };
   $('#chips').addEventListener('click', (e) => { const b = e.target.closest('button[data-wh]'); if (b) pickWh(b.dataset.wh); });
   $('#cards').addEventListener('click', (e) => { const b = e.target.closest('button[data-wh]'); if (b) pickWh(st.wh === b.dataset.wh ? 'All' : b.dataset.wh); });
@@ -743,12 +827,13 @@ const CHECK_EVERY_SECONDS = 60;
   $('#q').addEventListener('input', (e) => { clearTimeout(qt); qt = setTimeout(() => { st.q = e.target.value; resetPaging(); if (M) render(); }, 200); });
   $('#expChart').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-bk]'); if (!b || !M) return;
-    st.bucket = st.bucket === b.dataset.bk ? null : b.dataset.bk; st.shown = 200; render();
-    if (st.bucket) document.getElementById('skusec').scrollIntoView();
+    st.bucket = st.bucket === b.dataset.bk ? null : b.dataset.bk; st.shown = 200; st.lshown = 200; render();
+    if (st.bucket) document.getElementById('exploc').scrollIntoView();
   });
   $('#bucketTag').addEventListener('click', () => { st.bucket = null; st.shown = 200; render(); });
+  $('#lmore').addEventListener('click', () => { st.lshown += 200; drawLocs(); });
   $('#prChips').addEventListener('click', (e) => { const b = e.target.closest('button[data-pr]'); if (b) { st.pr = b.dataset.pr; st.pshown = 200; drawPlan(); } });
-  $('#reset').addEventListener('click', () => { Object.assign(st, { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200 }); $('#q').value = ''; if (M) render(); });
+  $('#reset').addEventListener('click', () => { Object.assign(st, { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200, lshown: 200 }); $('#q').value = ''; if (M) render(); });
   $('#more').addEventListener('click', () => { st.shown += 200; drawTable(); });
   $('#pmore').addEventListener('click', () => { st.pshown += 200; drawPlan(); });
   $('#tbl thead').addEventListener('click', (e) => {
