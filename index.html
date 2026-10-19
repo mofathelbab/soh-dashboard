@@ -156,6 +156,7 @@ html{scroll-behavior:smooth}
 .lk-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .lk-bar .in{flex:1 1 260px;font-size:15px;padding:12px 14px;border-color:#33466b}
 .lk-bar .in:focus{border-color:var(--y)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
 .cands{display:grid;gap:6px}
 .cand{appearance:none;font:inherit;color:inherit;text-align:left;display:grid;grid-template-columns:minmax(110px,auto) 1fr auto;gap:12px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer}
 .cand:hover{border-color:var(--y)}
@@ -203,6 +204,7 @@ tr.clickable{cursor:pointer}
           <button type="button" data-ex="xlsx">Export as Excel<span>All sections, current filters, one sheet each</span></button>
           <button type="button" data-ex="csv-sku">Export SKUs as CSV<span>SKU table with current filters</span></button>
           <button type="button" data-ex="csv-plan">Export plan as CSV<span>Consolidation moves with current filters</span></button>
+          <button type="button" data-ex="csv-lookup">Export SKU lookup as CSV<span>Every location line of the SKU you searched</span></button>
           <button type="button" data-ex="csv-loc">Export expiry locations as CSV<span>Pick an expiry row first; lists its locations</span></button>
         </div>
       </div>
@@ -228,7 +230,7 @@ tr.clickable{cursor:pointer}
     </div>
     <div class="lk-bar">
       <input class="in" id="lq" type="search" placeholder="SKU or barcode, e.g. ZE2C015C6D or 6221333002743" aria-label="SKU lookup" autocomplete="off" spellcheck="false">
-      <button class="btn" id="lkExport" type="button" hidden>Export CSV</button>
+      <button class="btn yb" id="lkExport" type="button" disabled>Export CSV</button>
       <button class="btn" id="lkClear" type="button" hidden>Clear</button>
     </div>
     <div id="lkBody"></div>
@@ -624,8 +626,8 @@ const CHECK_EVERY_SECONDS = 60;
     const box = $('#lkBody');
     const f = lookupFind();
     $('#lkClear').hidden = !st.lk;
-    $('#lkExport').hidden = f.state !== 'one';
-    if (f.state === 'empty') { box.replaceChildren(); return; }
+    $('#lkExport').disabled = f.state !== 'one';
+    if (f.state === 'empty') { box.replaceChildren(el('div', 'msg', 'Type a SKU or barcode above. The warehouses, locations and quantities show up right here.')); return; }
     if (f.state === 'none') { box.replaceChildren(el('div', 'msg', 'No SKU, barcode or title matches "' + st.lk.trim() + '".')); return; }
     if (f.state === 'many') {
       const wrap = el('div', 'cands');
@@ -979,6 +981,7 @@ const CHECK_EVERY_SECONDS = 60;
     closeMenu();
     if (!M) { alert('The stock has not loaded yet.'); return; }
     const k = b.dataset.ex;
+    if (k === 'csv-lookup') { $('#lkExport').disabled ? alert('Search for a SKU in SKU lookup first.') : $('#lkExport').click(); return; }
     if (k === 'pdf') exportPDF(); else if (k === 'xlsx') exportXLSX(); else exportCSV(k === 'csv-plan' ? 'plan' : k === 'csv-loc' ? 'loc' : 'sku');
   });
 
