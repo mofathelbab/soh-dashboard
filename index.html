@@ -152,6 +152,21 @@ table.single .colwh{display:none}
 .msg.err::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--r);flex:none}
 @media (prefers-reduced-motion:reduce){.sk,.live.busy .dot{animation:none}html{scroll-behavior:auto}}
 html{scroll-behavior:smooth}
+/* SKU lookup */
+.lk-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.lk-bar .in{flex:1 1 260px;font-size:15px;padding:12px 14px;border-color:#33466b}
+.lk-bar .in:focus{border-color:var(--y)}
+.cands{display:grid;gap:6px}
+.cand{appearance:none;font:inherit;color:inherit;text-align:left;display:grid;grid-template-columns:minmax(110px,auto) 1fr auto;gap:12px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer}
+.cand:hover{border-color:var(--y)}
+.cand .q{font-weight:800;text-align:right;white-space:nowrap}
+.lk-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.lk-title{font-size:18px;font-weight:800;margin:0}
+.lk-meta{display:flex;flex-wrap:wrap;gap:6px}
+.lk-wh{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr));gap:10px}
+.lk-wh .card{padding:12px 14px;gap:6px}
+.lk-wh .big{font-size:24px}
+tr.clickable{cursor:pointer}
 /* print / PDF */
 .print-only{display:none}
 @media print{
@@ -195,7 +210,7 @@ html{scroll-behavior:smooth}
     </div>
   </div>
   <nav class="nav" aria-label="Sections">
-    <a href="#warehouses">Overview</a><a href="#expiry">Expiry</a><a href="#families">Families</a><a href="#skusec">SKUs</a><a href="#consol">Consolidation plan</a>
+    <a href="#lookup">SKU lookup</a><a href="#warehouses">Overview</a><a href="#expiry">Expiry</a><a href="#families">Families</a><a href="#skusec">SKUs</a><a href="#consol">Consolidation plan</a>
   </nav>
 </header>
 
@@ -205,6 +220,19 @@ html{scroll-behavior:smooth}
     <h1 class="h1">Stock <span class="y">on hand</span></h1>
     <p class="note">Showing <b id="selName" style="color:var(--y)">All warehouses</b><span id="printFilters"></span></p>
   </div>
+
+  <section class="panel" id="lookup">
+    <div class="ph">
+      <div class="ico" style="--ic:rgba(255,229,0,.12);--icc:var(--y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></div>
+      <div><h2 class="h">SKU lookup</h2><p class="note">Type a SKU, barcode or title to see how many units it has, in which warehouses and locations, line by line as in the Data tab. You can also click any row in the SKU table below.</p></div>
+    </div>
+    <div class="lk-bar">
+      <input class="in" id="lq" type="search" placeholder="SKU or barcode, e.g. ZE2C015C6D or 6221333002743" aria-label="SKU lookup" autocomplete="off" spellcheck="false">
+      <button class="btn" id="lkExport" type="button" hidden>Export CSV</button>
+      <button class="btn" id="lkClear" type="button" hidden>Clear</button>
+    </div>
+    <div id="lkBody"></div>
+  </section>
 
   <section class="sec" id="warehouses">
     <div>
@@ -368,7 +396,7 @@ const CHECK_EVERY_SECONDS = 60;
   ];
   const BKL = Object.fromEntries(BK.map((b) => [b.k, b.l]));
   const PR = { 1: '1 Quick win', 2: '2 Frees location', 3: '3 Merge only', 4: '4 Wait: reserved' };
-  const st = { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200, lshown: 200 };
+  const st = { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200, lshown: 200, lk: '', lkSku: null, lkWh: 'All' };
   let M = null;
   let lastAt = null, updatedLabel = '';
   const H = { apikey: SB_READ_KEY, Authorization: 'Bearer ' + SB_READ_KEY };
@@ -419,7 +447,7 @@ const CHECK_EVERY_SECONDS = 60;
       if (!s) { s = { wh, sku: r.sku, title: r.title, family: fam, soh: 0, reserved: 0, locs: new Set(), bk: new Set(), nearest: '' }; sku.set(key, s); }
       s.soh += qty; s.reserved += res; s.locs.add(loc); s.bk.add(bk);
       if (exp && (!s.nearest || exp < s.nearest)) s.nearest = exp;
-      lines.push({ wh, loc, zone: r.zone_code || '', sku: r.sku, title: r.title, family: fam, exp, bk, days: exp ? dayDiff(exp, t0) : null, qty, res });
+      lines.push({ wh, loc, zone: r.zone_code || '', pb: String(r.pbarcode || '').trim(), lvl: r.barcode_level_code || '', brand: r.brand_code || '', sku: r.sku, title: r.title, family: fam, exp, bk, days: exp ? dayDiff(exp, t0) : null, qty, res });
       // consolidation plan input
       if (!exp || exp < t0) { keep.add(wh + '|' + loc); continue; }
       const lk = [wh, r.sku, exp, loc].join('|');
@@ -558,7 +586,141 @@ const CHECK_EVERY_SECONDS = 60;
     const tag = $('#bucketTag');
     tag.hidden = !st.bucket;
     tag.textContent = st.bucket ? 'Expiry: ' + BKL[st.bucket] + ' ×' : '';
-    drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawExpiry(); drawFamily(); drawLocs(); drawTable(); drawPlan();
+    drawLookup(); drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawExpiry(); drawFamily(); drawLocs(); drawTable(); drawPlan();
+  }
+
+  // ---------- SKU lookup ----------
+  function lookupIndex() {
+    if (M.idx) return M.idx;
+    const idx = new Map();
+    for (const l of M.lines) {
+      if (!l.sku) continue;
+      let o = idx.get(l.sku);
+      if (!o) { o = { sku: l.sku, title: l.title, family: l.family, brand: l.brand, pbs: new Set(), soh: 0, whs: new Set() }; idx.set(l.sku, o); }
+      if (l.pb && l.pb !== 'N/A') o.pbs.add(l.pb);
+      o.soh += l.qty; o.whs.add(l.wh);
+    }
+    M.idx = idx;
+    return idx;
+  }
+  function lookupFind() {
+    const q = st.lk.trim().toLowerCase();
+    if (!q) return { state: 'empty' };
+    const idx = lookupIndex();
+    if (st.lkSku && idx.has(st.lkSku)) return { state: 'one', item: idx.get(st.lkSku) };
+    const all = [...idx.values()];
+    const exact = all.filter((o) => String(o.sku).toLowerCase() === q || [...o.pbs].some((b) => b.toLowerCase() === q));
+    if (exact.length === 1) return { state: 'one', item: exact[0] };
+    const list = exact.length ? exact : all.filter((o) => String(o.sku).toLowerCase().includes(q) || String(o.title || '').toLowerCase().includes(q) || [...o.pbs].some((b) => b.toLowerCase().includes(q)));
+    if (!list.length) return { state: 'none' };
+    if (list.length === 1) return { state: 'one', item: list[0] };
+    return { state: 'many', list: list.sort((a, b) => b.soh - a.soh) };
+  }
+  function lookupLines(sku) {
+    return M.lines.filter((l) => l.sku === sku)
+      .sort((a, b) => a.wh.localeCompare(b.wh) || (a.days ?? 1e9) - (b.days ?? 1e9) || a.loc.localeCompare(b.loc));
+  }
+  function drawLookup() {
+    const box = $('#lkBody');
+    const f = lookupFind();
+    $('#lkClear').hidden = !st.lk;
+    $('#lkExport').hidden = f.state !== 'one';
+    if (f.state === 'empty') { box.replaceChildren(); return; }
+    if (f.state === 'none') { box.replaceChildren(el('div', 'msg', 'No SKU, barcode or title matches "' + st.lk.trim() + '".')); return; }
+    if (f.state === 'many') {
+      const wrap = el('div', 'cands');
+      const cap = 30;
+      wrap.append(el('p', 'note', F(f.list.length) + ' SKUs match. Pick one:'));
+      f.list.slice(0, cap).forEach((o) => {
+        const b = el('button', 'cand'); b.type = 'button'; b.dataset.sku = o.sku;
+        b.append(el('span', 'c-sku', o.sku), el('span', 'c-title', o.title || '—'), el('span', 'q', F(o.soh) + ' units · ' + o.whs.size + ' WH'));
+        wrap.append(b);
+      });
+      if (f.list.length > cap) wrap.append(el('p', 'note', 'Showing the top ' + cap + ' by units. Type more of the SKU to narrow it down.'));
+      box.replaceChildren(wrap);
+      return;
+    }
+    const o = f.item;
+    const all = lookupLines(o.sku);
+    const byWh = d3.rollups(all, (v) => ({ qty: d3.sum(v, (l) => l.qty), res: d3.sum(v, (l) => l.res), locs: new Set(v.map((l) => l.loc)).size, nearest: d3.min(v.filter((l) => l.exp), (l) => l.exp) || '' }), (l) => l.wh).sort((a, b) => a[0].localeCompare(b[0]));
+    if (st.lkWh !== 'All' && !byWh.some(([w]) => w === st.lkWh)) st.lkWh = 'All';
+    const rows = st.lkWh === 'All' ? all : all.filter((l) => l.wh === st.lkWh);
+
+    const head = el('div', 'lk-head');
+    head.append(el('p', 'lk-title', o.title || o.sku));
+    const meta = el('div', 'lk-meta');
+    const pill = (lbl, val) => { const p = el('span', 'pill'); p.append(lbl + ' ', el('b', '', val)); return p; };
+    meta.append(pill('SKU', o.sku), pill('Family', o.family || '—'));
+    if (o.brand) meta.append(pill('Brand', o.brand));
+    if (o.pbs.size) meta.append(pill('Barcode', [...o.pbs].join(', ')));
+    head.append(meta);
+
+    const tot = { soh: d3.sum(all, (l) => l.qty), res: d3.sum(all, (l) => l.res) };
+    const nearest = d3.min(all.filter((l) => l.exp), (l) => l.exp) || '';
+    const kpis = el('div', 'kpis');
+    const kpi = (c, lbl, v, cls) => { const k = el('div', 'kpi'); k.style.setProperty('--k', c); k.append(el('span', 'lbl', lbl), el('span', 'big' + (cls ? ' ' + cls : ''), v)); return k; };
+    const nd = nearest ? dayDiff(nearest, M.t0) : null;
+    const nk = kpi('var(--o)', 'Nearest expiry', nearest || '—');
+    if (nd != null && nd < 0) nk.querySelector('.big').style.color = 'var(--r)'; else if (nd != null && nd <= NEAR_EXPIRY_DAYS) nk.querySelector('.big').style.color = 'var(--o)';
+    nk.querySelector('.big').style.fontSize = '22px';
+    kpis.append(
+      kpi('var(--y)', 'SOH qty', F(tot.soh)),
+      kpi('var(--g)', 'Available qty', F(tot.soh - tot.res)),
+      kpi('var(--p)', 'Reserved qty', F(tot.res)),
+      kpi('var(--b)', 'Warehouses', F(byWh.length)),
+      kpi('var(--b)', 'Locations', F(new Set(all.map((l) => l.wh + '|' + l.loc)).size)),
+      nk);
+
+    const whg = el('div', 'lk-wh');
+    byWh.forEach(([w, v]) => {
+      const b = el('button', 'card'); b.type = 'button'; b.dataset.lkwh = w;
+      b.setAttribute('aria-pressed', String(st.lkWh === w));
+      b.title = 'Show only ' + w + ' locations';
+      const top = el('div', 'card-top'); const sk = el('span', 'skus'); sk.append(el('b', '', F(v.locs)), v.locs === 1 ? ' location' : ' locations');
+      top.append(el('span', 'wh', w), sk);
+      const bar = el('div', 'bar'); const t = v.qty || 1;
+      const i1 = el('i'); i1.style.width = (100 * Math.max(0, v.qty - v.res) / t) + '%';
+      const i2 = el('i'); i2.style.width = (100 * v.res / t) + '%'; bar.append(i1, i2);
+      const mini = el('div', 'mini');
+      const part = (val, label) => { const sp = el('span'); sp.append(el('b', '', val), ' ' + label); return sp; };
+      mini.append(part(F(v.qty - v.res), 'available'), part(F(v.res), 'reserved'));
+      if (v.nearest) mini.append(part(v.nearest, 'nearest'));
+      b.append(top, el('div', 'big', F(v.qty)), bar, mini);
+      whg.append(b);
+    });
+
+    const tw = el('div', 'tablewrap'); tw.style.maxHeight = '480px';
+    const tbl = el('table'); if (st.lkWh !== 'All') tbl.className = 'single';
+    const thead = el('thead'); const hr = el('tr');
+    [['Warehouse', 'plain colwh'], ['Location', 'plain'], ['Zone', 'plain'], ['Zone type', 'plain hide-sm'], ['Level', 'plain hide-sm'], ['Expiry', 'plain'], ['Days', 'plain num hide-sm'], ['Qty', 'plain num'], ['Reserved', 'plain num'], ['Available', 'plain num hide-sm']]
+      .forEach(([t, c]) => hr.append(el('th', c, t)));
+    thead.append(hr);
+    const tb = el('tbody');
+    rows.forEach((l) => {
+      const tr = el('tr');
+      const td = (cls, txt) => { tr.append(el('td', cls, txt)); };
+      td('c-wh colwh', l.wh); td('c-loc', l.loc); td('c-fam', l.zone || '—');
+      const z = el('td', 'hide-sm'); const t = zoneType(l.zone); z.append(el('span', 'zt ' + t, ZT[t])); tr.append(z);
+      td('c-fam hide-sm', l.lvl || '—');
+      td('c-date ' + dateCls(l.exp), l.exp || '—'); td('num hide-sm', l.days == null ? '—' : F(l.days));
+      td('num', F(l.qty)); td('num', F(l.res)); td('num hide-sm', F(l.qty - l.res));
+      tb.append(tr);
+    });
+    tbl.append(thead, tb); tw.append(tbl);
+    const foot = el('div', 'foot');
+    foot.append(el('span', '', `${F(rows.length)} location ${rows.length === 1 ? 'line' : 'lines'}` + (st.lkWh === 'All' ? ' across all warehouses' : ' in ' + st.lkWh + ' · click the card again to show all')));
+    box.replaceChildren(head, kpis, whg, tw, foot);
+  }
+  const lookupRowsOut = () => {
+    const f = lookupFind(); if (f.state !== 'one') return [];
+    return lookupLines(f.item.sku).filter((l) => st.lkWh === 'All' || l.wh === st.lkWh)
+      .map((l) => ({ Warehouse: l.wh, Location: l.loc, Zone: l.zone, 'Zone type': ZT[zoneType(l.zone)], SKU: l.sku, Title: l.title, Barcode: l.pb, Level: l.lvl, Expiry: l.exp, 'Days to expiry': l.days, Qty: l.qty, 'Reserved qty': l.res, 'Available qty': l.qty - l.res }));
+  };
+  function openLookup(sku) {
+    st.lk = sku; st.lkSku = sku; st.lkWh = 'All';
+    $('#lq').value = sku;
+    drawLookup();
+    document.getElementById('lookup').scrollIntoView();
   }
 
   function drawLocs() {
@@ -581,6 +743,7 @@ const CHECK_EVERY_SECONDS = 60;
     rows.slice(0, lim).forEach((l) => {
       const tr = document.createElement('tr');
       const td = (cls, txt) => { const c = el('td', cls, txt); tr.append(c); return c; };
+      tr.className = 'clickable'; tr.dataset.sku = l.sku; tr.title = 'Look up every location for this SKU';
       td('c-wh colwh', l.wh); td('c-loc', l.loc); td('c-fam', l.zone || '—');
       const z = el('td'); const t = zoneType(l.zone); z.append(el('span', 'zt ' + t, ZT[t])); tr.append(z);
       td('c-sku', l.sku); td('c-title', l.title);
@@ -708,6 +871,7 @@ const CHECK_EVERY_SECONDS = 60;
     rows.slice(0, lim).forEach((r) => {
       const tr = document.createElement('tr');
       const td = (cls, txt) => { const c = el('td', cls, txt); tr.append(c); return c; };
+      tr.className = 'clickable'; tr.dataset.sku = r.sku; tr.title = 'Look up every location for this SKU';
       td('c-wh colwh', r.wh); td('c-sku', r.sku); td('c-title', r.title); td('c-fam hide-sm', r.family);
       td('num', F(r.soh)); td('num hide-sm', F(r.reserved));
       td('c-date hide-sm ' + dateCls(r.nearest), r.nearest || '—');
@@ -791,6 +955,7 @@ const CHECK_EVERY_SECONDS = 60;
     add('Expiry risk', expiryRows().map((r) => ({ 'Time to expiry': r.l, 'Units': r.soh, 'Share of SOH': Math.round(r.pct * 1000) / 10 + '%', 'SKUs': r.skus })));
     add('Families', M.fam.filter((r) => r.wh === st.wh && r.soh > 0).sort((a, b) => b.soh - a.soh).map((r) => ({ Family: r.family, 'SOH qty': r.soh })));
     if (st.bucket) add('Expiry locations', locRowsOut());
+    const lkRows = lookupRowsOut(); if (lkRows.length) add('SKU lookup', lkRows);
     add('SKUs', skuRowsOut());
     add('Consolidation plan', planRowsOut());
     XLSX.writeFile(wb, `SOH_${scope()}_${stamp()}.xlsx`);
@@ -842,6 +1007,21 @@ const CHECK_EVERY_SECONDS = 60;
     if (k === st.sortKey) st.sortDir = -st.sortDir; else { st.sortKey = k; st.sortDir = ['wh', 'sku', 'title', 'family', 'nearest'].includes(k) ? 1 : -1; }
     st.shown = 200; drawTable();
   });
+  let lt;
+  $('#lq').addEventListener('input', (e) => { clearTimeout(lt); lt = setTimeout(() => { st.lk = e.target.value; st.lkSku = null; st.lkWh = 'All'; if (M) drawLookup(); }, 200); });
+  $('#lq').addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(lt); st.lk = e.target.value; st.lkSku = null; st.lkWh = 'All'; if (M) drawLookup(); } });
+  $('#lkClear').addEventListener('click', () => { st.lk = ''; st.lkSku = null; st.lkWh = 'All'; $('#lq').value = ''; drawLookup(); $('#lq').focus(); });
+  $('#lkBody').addEventListener('click', (e) => {
+    const c = e.target.closest('button[data-sku]'); if (c) { st.lkSku = c.dataset.sku; st.lk = c.dataset.sku; $('#lq').value = c.dataset.sku; drawLookup(); return; }
+    const w = e.target.closest('button[data-lkwh]'); if (w) { st.lkWh = st.lkWh === w.dataset.lkwh ? 'All' : w.dataset.lkwh; drawLookup(); }
+  });
+  $('#lkExport').addEventListener('click', () => {
+    const rows = lookupRowsOut(); if (!rows.length) return;
+    downloadBlob(new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' }), `SOH_lookup_${rows[0].SKU}_${stamp()}.csv`);
+  });
+  const rowLookup = (e) => { const tr = e.target.closest('tr[data-sku]'); if (tr && M) openLookup(tr.dataset.sku); };
+  $('#tbody').addEventListener('click', rowLookup);
+  $('#ltbody').addEventListener('click', rowLookup);
   $('#refresh').addEventListener('click', () => load(true));
   const setHdr = () => document.documentElement.style.setProperty('--hdr', $('#hdr').offsetHeight + 'px');
   setHdr();
