@@ -718,7 +718,7 @@ const CHECK_EVERY_SECONDS = 60;
   const lookupRowsOut = () => {
     const f = lookupFind(); if (f.state !== 'one') return [];
     return lookupLines(f.item.sku).filter((l) => st.lkWh === 'All' || l.wh === st.lkWh)
-      .map((l) => ({ Warehouse: l.wh, Location: l.loc, Zone: l.zone, 'Zone type': ZT[zoneType(l.zone)], SKU: l.sku, Title: l.title, Barcode: l.pb, Level: l.lvl, Expiry: l.exp, 'Days to expiry': l.days, Qty: l.qty, 'Reserved qty': l.res, 'Available qty': l.qty - l.res }));
+      .map((l) => ({ Warehouse: l.wh, Location: l.loc, Zone: l.zone, 'Zone type': ZT[zoneType(l.zone)], SKU: l.sku, Pbarcode: l.pb, Title: l.title, Level: l.lvl, Expiry: l.exp, 'Days to expiry': l.days, Qty: l.qty, 'Reserved qty': l.res, 'Available qty': l.qty - l.res }));
   };
   function openLookup(sku) {
     st.lk = sku; st.lkSku = sku; st.lkWh = 'All';
@@ -927,7 +927,8 @@ const CHECK_EVERY_SECONDS = 60;
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
-  const skuRowsOut = () => skuView().map((r) => ({ Warehouse: r.wh, SKU: r.sku, Title: r.title, Family: r.family, 'SOH qty': r.soh, 'Reserved qty': r.reserved, 'Available qty': r.soh - r.reserved, 'Nearest expiry': r.nearest, 'Unique locations': r.locations }));
+  const pbOf = (sku) => { const o = lookupIndex().get(sku); return o ? [...o.pbs].join(' / ') : ''; };
+  const skuRowsOut = () => skuView().map((r) => ({ Warehouse: r.wh, SKU: r.sku, Pbarcode: pbOf(r.sku), Title: r.title, Family: r.family, 'SOH qty': r.soh, 'Reserved qty': r.reserved, 'Available qty': r.soh - r.reserved, 'Nearest expiry': r.nearest, 'Unique locations': r.locations }));
   const planRowsOut = () => planView().map((m) => ({ Priority: PR[m.pr], Warehouse: m.wh, SKU: m.sku, Title: m.title, Expiry: m.exp, 'Days to expiry': m.days, 'From location': m.from, 'Move qty': m.qty, 'Reserved qty': m.reserved, 'To location': m.to, 'Qty already at To': m.toq, 'Frees From location': m.frees ? 'Yes' : 'No' }));
   function toCSV(rows) {
     if (!rows.length) return '';
@@ -935,13 +936,21 @@ const CHECK_EVERY_SECONDS = 60;
     const esc = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     return '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
   }
-  const locRowsOut = () => locView().map((l) => ({ Warehouse: l.wh, Location: l.loc, Zone: l.zone, 'Zone type': ZT[zoneType(l.zone)], SKU: l.sku, Title: l.title, Expiry: l.exp, 'Days to expiry': l.days, Qty: l.qty, 'Reserved qty': l.res }));
+  const locRowsOut = () => locView().map((l) => ({ Warehouse: l.wh, Location: l.loc, Zone: l.zone, 'Zone type': ZT[zoneType(l.zone)], SKU: l.sku, Pbarcode: l.pb, Title: l.title, Expiry: l.exp, 'Days to expiry': l.days, Qty: l.qty, 'Reserved qty': l.res }));
   function exportCSV(kind) {
     if (kind === 'loc' && !st.bucket) { alert('Click an expiry row first (for example Expired), then export its locations.'); return; }
     const rows = kind === 'plan' ? planRowsOut() : kind === 'loc' ? locRowsOut() : skuRowsOut();
     const name = kind === 'plan' ? 'consolidation_plan' : kind === 'loc' ? 'locations_' + st.bucket : 'skus';
     downloadBlob(new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' }), `SOH_${name}_${scope()}_${stamp()}.csv`);
   }
+  // one row per location line, with the current warehouse / family / expiry / search filters
+  const sohDetailOut = () => {
+    const q = st.q.trim().toLowerCase();
+    return M.lines
+      .filter((l) => (st.wh === 'All' || l.wh === st.wh) && (st.family === 'All' || l.family === st.family) && (!st.bucket || l.bk === st.bucket) && matchQ(q, l.sku, l.title, l.pb, l.loc))
+      .sort((a, b) => a.wh.localeCompare(b.wh) || String(a.sku).localeCompare(String(b.sku)) || a.loc.localeCompare(b.loc))
+      .map((l) => ({ Warehouse: l.wh, Pbarcode: l.pb && l.pb !== 'N/A' ? l.pb : '', SKU: l.sku, Title: l.title, Family: l.family, 'SOH qty': l.qty, 'Reserved qty': l.res, 'Available qty': l.qty - l.res, Location: l.loc, Zone: l.zone }));
+  };
   function exportXLSX() {
     if (!window.XLSX) { alert('Excel export could not load. Check your connection and try again.'); return; }
     const wb = XLSX.utils.book_new();
@@ -955,6 +964,7 @@ const CHECK_EVERY_SECONDS = 60;
     const info = XLSX.utils.aoa_to_sheet([['CAIID Stock on Hand export'], [], ...filt]);
     info['!cols'] = [{ wch: 16 }, { wch: 40 }];
     XLSX.utils.book_append_sheet(wb, info, 'Info');
+    add('SOH detail', sohDetailOut());
     add('Warehouses', M.wh.filter((r) => r.wh !== 'All').sort((a, b) => a.wh.localeCompare(b.wh)).concat(M.wh.filter((r) => r.wh === 'All')).map((r) => ({ Warehouse: r.wh === 'All' ? 'Total' : r.wh, 'SOH qty': r.soh, 'Available qty': r.available, 'Reserved qty': r.reserved, 'Unique SKUs': r.skus, 'Unique locations': r.locations, 'Expired qty': r.expired, ['Expiring in ' + NEAR_EXPIRY_DAYS + ' days']: r.expiring })));
     add('Expiry risk', expiryRows().map((r) => ({ 'Time to expiry': r.l, 'Units': r.soh, 'Share of SOH': Math.round(r.pct * 1000) / 10 + '%', 'SKUs': r.skus })));
     add('Families', M.fam.filter((r) => r.wh === st.wh && r.soh > 0).sort((a, b) => b.soh - a.soh).map((r) => ({ Family: r.family, 'SOH qty': r.soh })));
