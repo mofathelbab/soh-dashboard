@@ -186,6 +186,11 @@ tr.clickable{cursor:pointer}
   .wrap{padding-top:8px;gap:14px}
   .badge{box-shadow:none}
 }
+.thumb{width:38px;height:38px;border-radius:8px;object-fit:contain;background:#fff;display:block}
+.thumb.big{width:84px;height:84px;border-radius:12px}
+td.c-ph{width:46px;padding-top:4px;padding-bottom:4px}
+.pr-was{color:var(--muted);text-decoration:line-through;font-weight:600;margin-left:6px;font-size:.9em}
+.pr-off{color:var(--g);font-weight:800;margin-left:6px;font-size:.85em}
 .sku-link{color:inherit;text-decoration:underline;text-decoration-color:rgba(255,229,0,.45);text-underline-offset:3px}
 .sku-link:hover{color:var(--y);text-decoration-color:var(--y)}
 .sku-link::after{content:" ↗";font-size:.85em;opacity:.6}
@@ -261,6 +266,7 @@ tr.clickable{cursor:pointer}
     <div class="kpi" style="--k:var(--y)"><span class="lbl">SOH qty</span><span class="big" data-k="soh">—</span></div>
     <div class="kpi" style="--k:var(--g)"><span class="lbl">Available qty</span><span class="big" data-k="available">—</span></div>
     <div class="kpi" style="--k:var(--p)"><span class="lbl">Reserved qty</span><span class="big" data-k="reserved">—</span></div>
+    <div class="kpi" style="--k:var(--y)"><span class="lbl">Stock value (EGP, noon price)</span><span class="big" data-k="value">—</span></div>
     <div class="kpi" style="--k:var(--b)"><span class="lbl">Unique SKUs</span><span class="big" data-k="skus">—</span></div>
     <div class="kpi" style="--k:var(--b)"><span class="lbl">Unique locations</span><span class="big" data-k="locations">—</span></div>
     <div class="kpi" style="--k:var(--r)"><span class="lbl">Expired qty</span><span class="big" data-k="expired">—</span></div>
@@ -326,9 +332,12 @@ tr.clickable{cursor:pointer}
         <thead><tr>
           <th class="colwh"><button type="button" data-sort="wh">Warehouse</button></th>
           <th><button type="button" data-sort="sku">SKU</button></th>
+          <th class="plain">Photo</th>
           <th><button type="button" data-sort="title">Title</button></th>
           <th class="hide-sm"><button type="button" data-sort="family">Family</button></th>
+          <th class="num"><button type="button" data-sort="price">Price (EGP)</button></th>
           <th class="num"><button type="button" data-sort="soh">SOH qty</button></th>
+          <th class="num"><button type="button" data-sort="value">Stock value (EGP)</button></th>
           <th class="num hide-sm"><button type="button" data-sort="reserved">Reserved</button></th>
           <th class="hide-sm"><button type="button" data-sort="nearest">Nearest expiry</button></th>
           <th class="num"><button type="button" data-sort="locations">Unique locations</button></th>
@@ -407,6 +416,25 @@ const CHECK_EVERY_SECONDS = 60;
   let M = null;
   let lastAt = null, updatedLabel = '';
   // product page on noon Minutes: the address is just the SKU
+  // noon Minutes prices per SKU, saved by the Refresh Prices bookmark (Supabase row 6)
+  let PRICES = new Map(), pricesAt = null;
+  async function loadPrices() {
+    try {
+      const A = SB_URL + '/rest/v1/stocktake_snapshots?id=eq.6&select=';
+      const r = await fetch(A + 'updated_at', { headers: H, cache: 'no-store' }); if (!r.ok) return false;
+      const j = await r.json(); if (!j[0] || j[0].updated_at === pricesAt) return false;
+      const r2 = await fetch(A + 'updated_at,cols,rows', { headers: H, cache: 'no-store' }); if (!r2.ok) return false;
+      const d = (await r2.json())[0]; if (!d) return false;
+      const ix = Object.fromEntries(d.cols.map((c, i) => [c, i])); const m = new Map();
+      d.rows.forEach((a) => { const sku = a[ix.sku]; if (!sku) return; const price = a[ix.price] === '' ? null : +a[ix.price]; const was = a[ix.was] === '' ? null : +a[ix.was];
+        m.set(sku, { price, was: was && price != null && was > price ? was : null, off: was && price != null && was > price ? Math.round(100 * (1 - price / was)) : 0, size: a[ix.size] || '', image: a[ix.image] || '', status: a[ix.status] || '' }); });
+      PRICES = m; pricesAt = d.updated_at; return true;
+    } catch (e) { return false; }
+  }
+  const priceOf = (sku) => PRICES.get(sku) || null;
+  const EGP = d3.format(',.2f');
+  const money = (v) => (v == null ? '—' : EGP(v));
+  const thumb = (sku, big) => { const p = priceOf(sku); if (!p || !p.image) return null; const i = document.createElement('img'); i.className = 'thumb' + (big ? ' big' : ''); i.loading = 'lazy'; i.alt = ''; i.src = p.image + '?width=' + (big ? 200 : 96); i.onerror = () => i.remove(); return i; };
   const PRODUCT_URL = (sku) => 'https://minutes.noon.com/egypt-en/now-product/' + encodeURIComponent(String(sku).trim()) + '/';
   const skuLink = (sku, cls) => { const a = document.createElement('a'); a.className = (cls || '') + ' sku-link'; a.href = PRODUCT_URL(sku); a.target = '_blank'; a.rel = 'noopener'; a.textContent = sku; a.title = 'Open on noon Minutes'; a.addEventListener('click', (e) => e.stopPropagation()); return a; };
   const skuTd = (tr, sku) => { const c = document.createElement('td'); c.className = 'c-sku'; if (sku) c.append(skuLink(sku)); else c.textContent = '—'; tr.append(c); };
@@ -545,7 +573,7 @@ const CHECK_EVERY_SECONDS = 60;
       try {
         if (M && !force && !fromSheet) {
           const r = await fetch(API + 'updated_at', { headers: H, cache: 'no-store' });
-          if (r.ok) { const j = await r.json(); if (j[0] && j[0].updated_at === lastAt) { setLive('ok', 'LIVE'); return; } }
+          if (r.ok) { const j = await r.json(); if (j[0] && j[0].updated_at === lastAt) { const ch = await loadPrices(); setLive('ok', 'LIVE'); if (ch) render(); return; } }
         }
         const res = await fetch(API + 'updated_at,row_count,cols,rows', { headers: H, cache: 'no-store' });
         if (res.ok) { const j = await res.json(); snap = j[0] || null; }
@@ -553,7 +581,7 @@ const CHECK_EVERY_SECONDS = 60;
       if (snap) {
         const { cols, rows, updated_at } = snap;
         M = build(rows.map((a) => Object.fromEntries(cols.map((c, i) => [c, a[i]]))));
-        fromSheet = false; lastAt = updated_at;
+        fromSheet = false; lastAt = updated_at; await loadPrices();
         updatedLabel = when(updated_at);
         $('#loadedAt').textContent = updatedLabel; paintAge();
         setLive('ok', 'LIVE');
@@ -572,10 +600,12 @@ const CHECK_EVERY_SECONDS = 60;
   const matchQ = (q, ...vals) => !q || vals.some((v) => String(v || '').toLowerCase().includes(q));
   function skuView() {
     const q = st.q.trim().toLowerCase();
-    let rows = M.sku.filter((r) => (st.wh === 'All' || r.wh === st.wh) && (st.family === 'All' || r.family === st.family) && (!st.bucket || r.bk.has(st.bucket)) && matchQ(q, r.sku, r.title));
+    let rows = M.sku.filter((r) => (st.wh === 'All' || r.wh === st.wh) && (st.family === 'All' || r.family === st.family) && (!st.bucket || r.bk.has(st.bucket)) && matchQ(q, r.sku, r.title))
+      .map((r) => { const p = priceOf(r.sku); return Object.assign(r, { price: p && p.price != null ? p.price : null, value: p && p.price != null ? p.price * r.soh : null }); });
     rows.sort((a, b) => {
       let va = a[st.sortKey], vb = b[st.sortKey];
       if (st.sortKey === 'nearest') { va = va || '9999'; vb = vb || '9999'; }
+      if (st.sortKey === 'price' || st.sortKey === 'value') { va = va == null ? -1 : va; vb = vb == null ? -1 : vb; }
       const c = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb));
       return c * st.sortDir || b.soh - a.soh;
     });
@@ -671,7 +701,9 @@ const CHECK_EVERY_SECONDS = 60;
     head.append(el('p', 'lk-title', o.title || o.sku));
     const meta = el('div', 'lk-meta');
     const pill = (lbl, val) => { const p = el('span', 'pill'); p.append(lbl + ' ', el('b', '', val)); return p; };
+    { const im = thumb(o.sku, true); if (im) head.prepend(im); }
     meta.append(pill('SKU', o.sku), pill('Family', o.family || '—'));
+    { const p = priceOf(o.sku); if (p && p.price != null) { const pp = el('span', 'pill'); pp.append('Price ', el('b', '', 'EGP ' + money(p.price))); if (p.was) pp.append(el('span', 'pr-was', money(p.was)), el('span', 'pr-off', p.off + '% OFF')); meta.append(pp); if (p.size) meta.append(pill('Size', p.size)); } else if (p && p.status) meta.append(pill('noon Minutes', p.status)); }
     { const a = skuLink('Open on noon Minutes', 'pill'); a.href = PRODUCT_URL(o.sku); meta.append(a); }
     if (o.brand) meta.append(pill('Brand', o.brand));
     if (o.pbs.size) meta.append(pill('Barcode', [...o.pbs].join(', ')));
@@ -822,7 +854,11 @@ const CHECK_EVERY_SECONDS = 60;
 
   function drawKpis() {
     const r = M.wh.find((x) => x.wh === st.wh) || {};
-    document.querySelectorAll('#kpis [data-k]').forEach((e) => { const v = r[e.dataset.k]; e.textContent = v == null ? '—' : F(v); });
+    const vrows = M.sku.filter((x) => st.wh === 'All' || x.wh === st.wh); let val = 0, priced = 0;
+    vrows.forEach((x) => { const p = priceOf(x.sku); if (p && p.price != null) { val += p.price * x.soh; priced++; } });
+    document.querySelectorAll('#kpis [data-k]').forEach((e) => {
+      if (e.dataset.k === 'value') { e.textContent = PRICES.size ? d3.format(',.0f')(val) : '—'; e.title = PRICES.size ? priced.toLocaleString() + ' of ' + vrows.length.toLocaleString() + ' SKU lines have a noon Minutes price' : 'Run the Refresh Prices bookmark on minutes.noon.com'; return; }
+      const v = r[e.dataset.k]; e.textContent = v == null ? '—' : F(v); });
   }
 
   function expiryRows() {
@@ -883,7 +919,7 @@ const CHECK_EVERY_SECONDS = 60;
   function drawTable() {
     $('#tbl').classList.toggle('single', st.wh !== 'All');
     document.querySelectorAll('#tbl th').forEach((th) => {
-      const k = th.querySelector('button').dataset.sort;
+      const bt = th.querySelector('button'); if (!bt) return; const k = bt.dataset.sort;
       if (k === st.sortKey) th.setAttribute('aria-sort', st.sortDir > 0 ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
     });
     const rows = skuView();
@@ -894,8 +930,9 @@ const CHECK_EVERY_SECONDS = 60;
       const tr = document.createElement('tr');
       const td = (cls, txt) => { const c = el('td', cls, txt); tr.append(c); return c; };
       tr.className = 'clickable'; tr.dataset.sku = r.sku; tr.title = 'Look up every location for this SKU';
-      td('c-wh colwh', r.wh); skuTd(tr, r.sku); td('c-title', r.title); td('c-fam hide-sm', r.family);
-      td('num', F(r.soh)); td('num hide-sm', F(r.reserved));
+      td('c-wh colwh', r.wh); skuTd(tr, r.sku); { const c = el('td', 'c-ph'); const im = thumb(r.sku); if (im) c.append(im); tr.append(c); } td('c-title', r.title); td('c-fam hide-sm', r.family);
+      { const p = priceOf(r.sku); const c = el('td', 'num'); if (p && p.price != null) { c.append(document.createTextNode(money(p.price))); if (p.was) { c.append(el('span', 'pr-was', money(p.was))); c.title = p.off + '% off' + (p.size ? ' · ' + p.size : ''); } else if (p.size) c.title = p.size; } else { c.textContent = '—'; if (p && p.status) c.title = p.status; } tr.append(c); }
+      td('num', F(r.soh)); td('num', r.value == null ? '—' : EGP(r.value)); td('num hide-sm', F(r.reserved));
       td('c-date hide-sm ' + dateCls(r.nearest), r.nearest || '—');
       const c = el('td', 'num');
       const wrap = el('span', 'loc'); const track = el('span', 'track'); const bar = el('i'); bar.style.width = (100 * r.locations / maxLoc) + '%';
@@ -946,7 +983,7 @@ const CHECK_EVERY_SECONDS = 60;
     document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
   const pbOf = (sku) => { const o = lookupIndex().get(sku); return o ? [...o.pbs].join(' / ') : ''; };
-  const skuRowsOut = () => skuView().map((r) => ({ Warehouse: r.wh, SKU: r.sku, Pbarcode: pbOf(r.sku), Title: r.title, Family: r.family, 'SOH qty': r.soh, 'Reserved qty': r.reserved, 'Available qty': r.soh - r.reserved, 'Nearest expiry': r.nearest, 'Unique locations': r.locations }));
+  const skuRowsOut = () => skuView().map((r) => { const p = priceOf(r.sku) || {}; return { Warehouse: r.wh, SKU: r.sku, Pbarcode: pbOf(r.sku), Title: r.title, Family: r.family, Size: p.size || '', 'Price (EGP)': p.price ?? '', 'Was (EGP)': p.was ?? '', 'Discount %': p.off || '', 'SOH qty': r.soh, 'Stock value (EGP)': p.price != null ? Math.round(p.price * r.soh * 100) / 100 : '', 'Reserved qty': r.reserved, 'Available qty': r.soh - r.reserved, 'Available value (EGP)': p.price != null ? Math.round(p.price * (r.soh - r.reserved) * 100) / 100 : '', 'Nearest expiry': r.nearest, 'Unique locations': r.locations, 'noon Minutes status': p.status || 'not checked yet' }; });
   const planRowsOut = () => planView().map((m) => ({ Priority: PR[m.pr], Warehouse: m.wh, SKU: m.sku, Title: m.title, Expiry: m.exp, 'Days to expiry': m.days, 'From location': m.from, 'Move qty': m.qty, 'Reserved qty': m.reserved, 'To location': m.to, 'Qty already at To': m.toq, 'Frees From location': m.frees ? 'Yes' : 'No' }));
   function toCSV(rows) {
     if (!rows.length) return '';
@@ -967,7 +1004,7 @@ const CHECK_EVERY_SECONDS = 60;
     return M.lines
       .filter((l) => (st.wh === 'All' || l.wh === st.wh) && (st.family === 'All' || l.family === st.family) && (!st.bucket || l.bk === st.bucket) && matchQ(q, l.sku, l.title, l.pb, l.loc))
       .sort((a, b) => a.wh.localeCompare(b.wh) || String(a.sku).localeCompare(String(b.sku)) || a.loc.localeCompare(b.loc))
-      .map((l) => ({ Warehouse: l.wh, Pbarcode: l.pb && l.pb !== 'N/A' ? l.pb : '', SKU: l.sku, Title: l.title, Family: l.family, 'SOH qty': l.qty, 'Reserved qty': l.res, 'Available qty': l.qty - l.res, Location: l.loc, Zone: l.zone }));
+      .map((l) => { const p = priceOf(l.sku) || {}; return { Warehouse: l.wh, Pbarcode: l.pb && l.pb !== 'N/A' ? l.pb : '', SKU: l.sku, Title: l.title, Family: l.family, 'SOH qty': l.qty, 'Reserved qty': l.res, 'Available qty': l.qty - l.res, Location: l.loc, Zone: l.zone, 'Price (EGP)': p.price ?? '', 'Line value (EGP)': p.price != null ? Math.round(p.price * l.qty * 100) / 100 : '' }; });
   };
   function exportXLSX() {
     if (!window.XLSX) { alert('Excel export could not load. Check your connection and try again.'); return; }
