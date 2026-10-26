@@ -186,6 +186,9 @@ tr.clickable{cursor:pointer}
   .wrap{padding-top:8px;gap:14px}
   .badge{box-shadow:none}
 }
+.sku-link{color:inherit;text-decoration:underline;text-decoration-color:rgba(255,229,0,.45);text-underline-offset:3px}
+.sku-link:hover{color:var(--y);text-decoration-color:var(--y)}
+.sku-link::after{content:" ↗";font-size:.85em;opacity:.6}
 </style>
 </head>
 <body>
@@ -403,6 +406,10 @@ const CHECK_EVERY_SECONDS = 60;
   const st = { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200, lshown: 200, lk: '', lkSku: null, lkWh: 'All' };
   let M = null;
   let lastAt = null, updatedLabel = '';
+  // product page on noon Minutes: the address is just the SKU
+  const PRODUCT_URL = (sku) => 'https://minutes.noon.com/egypt-en/now-product/' + encodeURIComponent(String(sku).trim()) + '/';
+  const skuLink = (sku, cls) => { const a = document.createElement('a'); a.className = (cls || '') + ' sku-link'; a.href = PRODUCT_URL(sku); a.target = '_blank'; a.rel = 'noopener'; a.textContent = sku; a.title = 'Open on noon Minutes'; a.addEventListener('click', (e) => e.stopPropagation()); return a; };
+  const skuTd = (tr, sku) => { const c = document.createElement('td'); c.className = 'c-sku'; if (sku) c.append(skuLink(sku)); else c.textContent = '—'; tr.append(c); };
   // how old the data is: orange when the Refresh SOH bookmark has not saved for more than 20 minutes
   const STALE_MIN = 20;
   function paintAge() {
@@ -665,6 +672,7 @@ const CHECK_EVERY_SECONDS = 60;
     const meta = el('div', 'lk-meta');
     const pill = (lbl, val) => { const p = el('span', 'pill'); p.append(lbl + ' ', el('b', '', val)); return p; };
     meta.append(pill('SKU', o.sku), pill('Family', o.family || '—'));
+    { const a = skuLink('Open on noon Minutes', 'pill'); a.href = PRODUCT_URL(o.sku); meta.append(a); }
     if (o.brand) meta.append(pill('Brand', o.brand));
     if (o.pbs.size) meta.append(pill('Barcode', [...o.pbs].join(', ')));
     head.append(meta);
@@ -760,7 +768,7 @@ const CHECK_EVERY_SECONDS = 60;
       tr.className = 'clickable'; tr.dataset.sku = l.sku; tr.title = 'Look up every location for this SKU';
       td('c-wh colwh', l.wh); td('c-loc', l.loc); td('c-fam', l.zone || '—');
       const z = el('td'); const t = zoneType(l.zone); z.append(el('span', 'zt ' + t, ZT[t])); tr.append(z);
-      td('c-sku', l.sku); td('c-title', l.title);
+      skuTd(tr, l.sku); td('c-title', l.title);
       td('c-date ' + dateCls(l.exp), l.exp || '—'); td('num hide-sm', l.days == null ? '—' : F(l.days));
       td('num', F(l.qty)); td('num hide-sm', F(l.res));
       frag.append(tr);
@@ -886,7 +894,7 @@ const CHECK_EVERY_SECONDS = 60;
       const tr = document.createElement('tr');
       const td = (cls, txt) => { const c = el('td', cls, txt); tr.append(c); return c; };
       tr.className = 'clickable'; tr.dataset.sku = r.sku; tr.title = 'Look up every location for this SKU';
-      td('c-wh colwh', r.wh); td('c-sku', r.sku); td('c-title', r.title); td('c-fam hide-sm', r.family);
+      td('c-wh colwh', r.wh); skuTd(tr, r.sku); td('c-title', r.title); td('c-fam hide-sm', r.family);
       td('num', F(r.soh)); td('num hide-sm', F(r.reserved));
       td('c-date hide-sm ' + dateCls(r.nearest), r.nearest || '—');
       const c = el('td', 'num');
@@ -918,7 +926,7 @@ const CHECK_EVERY_SECONDS = 60;
       const tr = document.createElement('tr');
       const td = (cls, txt) => { const c = el('td', cls, txt); tr.append(c); return c; };
       const p = el('td'); p.append(el('span', 'pr pr' + m.pr, PR[m.pr])); tr.append(p);
-      td('c-wh colwh', m.wh); td('c-sku', m.sku); td('c-title', m.title);
+      td('c-wh colwh', m.wh); skuTd(tr, m.sku); td('c-title', m.title);
       td('c-date ' + dateCls(m.exp), m.exp); td('num hide-sm', F(m.days));
       const ft = el('td', 'c-loc'); ft.append(el('span', '', m.from), el('span', 'arrow', '→'), el('span', '', m.to)); tr.append(ft);
       td('num', F(m.qty)); td('num hide-sm', F(m.reserved)); td('num hide-sm', F(m.toq));
@@ -938,7 +946,7 @@ const CHECK_EVERY_SECONDS = 60;
     document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
   const pbOf = (sku) => { const o = lookupIndex().get(sku); return o ? [...o.pbs].join(' / ') : ''; };
-  const skuRowsOut = () => skuView().map((r) => ({ Warehouse: r.wh, SKU: r.sku, Pbarcode: pbOf(r.sku), Title: r.title, Family: r.family, 'SOH qty': r.soh, 'Reserved qty': r.reserved, 'Available qty': r.soh - r.reserved, 'Nearest expiry': r.nearest, 'Unique locations': r.locations }));
+  const skuRowsOut = () => skuView().map((r) => ({ Warehouse: r.wh, SKU: r.sku, Pbarcode: pbOf(r.sku), 'noon Minutes page': PRODUCT_URL(r.sku), Title: r.title, Family: r.family, 'SOH qty': r.soh, 'Reserved qty': r.reserved, 'Available qty': r.soh - r.reserved, 'Nearest expiry': r.nearest, 'Unique locations': r.locations }));
   const planRowsOut = () => planView().map((m) => ({ Priority: PR[m.pr], Warehouse: m.wh, SKU: m.sku, Title: m.title, Expiry: m.exp, 'Days to expiry': m.days, 'From location': m.from, 'Move qty': m.qty, 'Reserved qty': m.reserved, 'To location': m.to, 'Qty already at To': m.toq, 'Frees From location': m.frees ? 'Yes' : 'No' }));
   function toCSV(rows) {
     if (!rows.length) return '';
