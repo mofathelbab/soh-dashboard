@@ -403,6 +403,16 @@ const CHECK_EVERY_SECONDS = 60;
   const st = { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200, lshown: 200, lk: '', lkSku: null, lkWh: 'All' };
   let M = null;
   let lastAt = null, updatedLabel = '';
+  // how old the data is: orange when the Refresh SOH bookmark has not saved for more than 20 minutes
+  const STALE_MIN = 20;
+  function paintAge() {
+    const lab = document.getElementById('loadedAt'); if (!lab || !lastAt) return;
+    const mins = Math.round((Date.now() - Date.parse(lastAt)) / 6e4);
+    lab.textContent = updatedLabel + (mins > STALE_MIN ? ' · ' + (mins < 120 ? mins + ' min' : Math.round(mins / 60) + ' h') + ' old' : '');
+    lab.style.color = mins > STALE_MIN ? 'var(--o)' : '';
+    lab.title = mins > STALE_MIN ? 'SOH data has not been refreshed for ' + mins + ' minutes. Is the Refresh SOH bookmark still running on grocery-tools?' : 'Refreshed by the Refresh SOH bookmark every 5 minutes';
+  }
+  setInterval(paintAge, 30000);
   const H = { apikey: SB_READ_KEY, Authorization: 'Bearer ' + SB_READ_KEY };
   const API = SB_URL + '/rest/v1/soh_snapshots?id=eq.1&select=';
 
@@ -538,7 +548,7 @@ const CHECK_EVERY_SECONDS = 60;
         M = build(rows.map((a) => Object.fromEntries(cols.map((c, i) => [c, a[i]]))));
         fromSheet = false; lastAt = updated_at;
         updatedLabel = when(updated_at);
-        $('#loadedAt').textContent = updatedLabel;
+        $('#loadedAt').textContent = updatedLabel; paintAge();
         setLive('ok', 'LIVE');
         render();
         return;
