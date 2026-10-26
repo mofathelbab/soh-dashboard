@@ -946,7 +946,7 @@ const CHECK_EVERY_SECONDS = 60;
     document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
   const pbOf = (sku) => { const o = lookupIndex().get(sku); return o ? [...o.pbs].join(' / ') : ''; };
-  const skuRowsOut = () => skuView().map((r) => ({ Warehouse: r.wh, SKU: r.sku, Pbarcode: pbOf(r.sku), 'noon Minutes page': PRODUCT_URL(r.sku), Title: r.title, Family: r.family, 'SOH qty': r.soh, 'Reserved qty': r.reserved, 'Available qty': r.soh - r.reserved, 'Nearest expiry': r.nearest, 'Unique locations': r.locations }));
+  const skuRowsOut = () => skuView().map((r) => ({ Warehouse: r.wh, SKU: r.sku, Pbarcode: pbOf(r.sku), Title: r.title, Family: r.family, 'SOH qty': r.soh, 'Reserved qty': r.reserved, 'Available qty': r.soh - r.reserved, 'Nearest expiry': r.nearest, 'Unique locations': r.locations }));
   const planRowsOut = () => planView().map((m) => ({ Priority: PR[m.pr], Warehouse: m.wh, SKU: m.sku, Title: m.title, Expiry: m.exp, 'Days to expiry': m.days, 'From location': m.from, 'Move qty': m.qty, 'Reserved qty': m.reserved, 'To location': m.to, 'Qty already at To': m.toq, 'Frees From location': m.frees ? 'Yes' : 'No' }));
   function toCSV(rows) {
     if (!rows.length) return '';
@@ -976,6 +976,9 @@ const CHECK_EVERY_SECONDS = 60;
       const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Note: 'No rows for these filters' }]);
       const cols = Object.keys(rows[0] || { Note: '' });
       ws['!cols'] = cols.map((c) => ({ wch: Math.min(48, Math.max(c.length + 2, ...rows.slice(0, 300).map((r) => String(r[c] ?? '').length + 1))) }));
+      // the SKU cell itself is a link to the product on noon Minutes (the value stays the SKU)
+      const si = cols.indexOf('SKU');
+      if (si >= 0) rows.forEach((r, i) => { const ref = XLSX.utils.encode_cell({ r: i + 1, c: si }); const v = r.SKU; if (ws[ref] && v) ws[ref].l = { Target: PRODUCT_URL(v), Tooltip: 'Open on noon Minutes' }; });
       XLSX.utils.book_append_sheet(wb, ws, name);
     };
     const filt = [['Updated', updatedLabel], ['Warehouse', st.wh], ['Family', st.family], ['Expiry filter', st.bucket ? BKL[st.bucket] : 'All'], ['Search', st.q.trim() || '—'], ['Exported', new Date().toLocaleString()]];
