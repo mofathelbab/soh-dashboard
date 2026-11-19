@@ -223,7 +223,7 @@ td.c-ph{width:46px;padding-top:4px;padding-bottom:4px}
     </div>
   </div>
   <nav class="nav" aria-label="Sections">
-    <a href="#lookup">SKU lookup</a><a href="#warehouses">Overview</a><a href="#expiry">Expiry</a><a href="#families">Families</a><a href="#zones">Zones</a><a href="#skusec">SKUs</a><a href="#consol">Consolidation plan</a>
+    <a href="#lookup">SKU lookup</a><a href="#warehouses">Overview</a><a href="#expiry">Expiry</a><a href="#families">Families</a><a href="#categories">Categories</a><a href="#zones">Zones</a><a href="#skusec">SKUs</a><a href="#consol">Consolidation plan</a>
   </nav>
 </header>
 
@@ -259,6 +259,7 @@ td.c-ph{width:46px;padding-top:4px;padding-bottom:4px}
   <div class="filters" id="filters">
     <div class="chips" id="chips" role="group" aria-label="Warehouse"></div>
     <select class="in" id="fam" aria-label="Family"><option value="All">All families</option></select>
+    <select class="in" id="cat" aria-label="Category"><option value="All">All categories</option></select>
     <input class="in search" id="q" type="search" placeholder="Search SKU, title or location" aria-label="Search SKU, title or location">
     <button class="tag" id="bucketTag" type="button" hidden></button>
     <button class="btn" id="reset" type="button">Reset filters</button>
@@ -291,7 +292,14 @@ td.c-ph{width:46px;padding-top:4px;padding-bottom:4px}
       </div>
       <div class="chart" id="famChart"></div>
     </section>
-  <section class="panel" id="zones">
+  <section class="panel" id="categories">
+      <div class="ph">
+        <div class="ico" style="--ic:rgba(52,211,153,.14);--icc:var(--g)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <div><h2 class="h">SOH by category</h2><p class="note">Units on hand per main category, worked out from the item description (water, cans, snacks, detergent, wipes…). Click a bar to filter the tables.</p></div>
+      </div>
+      <div class="chart" id="catChart"></div>
+    </section>
+    <section class="panel" id="zones">
     <div class="ph">
       <div class="ico" style="--ic:rgba(96,165,250,.14);--icc:var(--b)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg></div>
       <div><h2 class="h">Zones</h2><p class="note">Units, share and locations per zone, following the warehouse, family, expiry and search filters. Green = live zone (STOCK…), blue = other zone, grey = no zone.</p></div>
@@ -423,7 +431,7 @@ const CHECK_EVERY_SECONDS = 60;
   ];
   const BKL = Object.fromEntries(BK.map((b) => [b.k, b.l]));
   const PR = { 1: '1 Quick win', 2: '2 Frees location', 3: '3 Merge only', 4: '4 Wait: reserved' };
-  const st = { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200, lshown: 200, lk: '', lkSku: null, lkWh: 'All' };
+  const st = { wh: 'All', family: 'All', cat: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200, lshown: 200, lk: '', lkSku: null, lkWh: 'All' };
   let M = null;
   // The SOH save has a `dataset` column: Live, Expired, Near Expiry, Non-live.
   // Rows without it (older saves, the sheet fallback) count as Live.
@@ -493,6 +501,41 @@ const CHECK_EVERY_SECONDS = 60;
     return 'y1';
   };
 
+  // ---------- main category from the item description (title); the family is the fallback ----------
+  // Rules are checked in order and the first match wins. Add or move words here to change a category.
+  const CAT_RULES = [
+    ['Baby', /\b(diapers?|nappies|nappy|baby|babies|infant|toddler)\b/i],
+    ['Pet', /\b(cats?|dogs?|pets?|kittens?|puppy|puppies)\b/i],
+    ['Feminine care', /\b(sanitary|pads?|tampons?|panty ?liners?|liners?)\b/i],
+    ['Oral care', /\b(toothpaste|tooth ?brush(es)?|mouth ?wash|dental|floss)\b/i],
+    ['Hair care', /\b(shampoo|conditioner|hair|hair ?gel|hair ?spray|hair ?oil)\b/i],
+    ['Dishwashing', /\b(dish ?wash\w*|dish ?soap|dish ?liquid|washing up)\b/i],
+    ['Laundry', /\b(detergents?|laundry|fabric softeners?|softeners?|stain remover)\b/i],
+    ['Wipes & tissues', /\b(wipes?|tissues?|toilet (paper|rolls?)|kitchen towels?|paper towels?|napkins?|handkerchiefs?)\b/i],
+    ['Household cleaning', /\b(clean\w*|disinfect\w*|sanitiz\w*|bleach|floor|mops?|sponges?|bin bags?|garbage bags?|air fresheners?|freshener|insecticides?|mosquito|cockroach)\b/i],
+    ['Personal care', /\b(soaps?|body ?wash|shower|deodorants?|body lotion|hand cream|face|skin|razors?|shaving|shave|perfume|sunscreen|rose ?water)\b/i],
+    ['Juices & energy', /\b(juices?|nectars?|smoothies?|energy drinks?|red bull|monster|lemonade|coconut water|ice ?tea|iced tea|drink mix)\b/i],
+    ['Water', /\b(water|waters)\b/i],
+    ['Soft drinks', /\b(cola|coca[- ]?cola|coke|pepsi|sprite|fanta|7 ?up|mirinda|schweppes|soda|soft drinks?|tonic|ginger ale|sparkling)\b/i],
+    ['Tea & coffee', /\b(teas?|coffee|nescafe|nes cafe|cappuccino|espresso|hibiscus|karkade|chamomile)\b/i],
+    ['Sweets & chocolate', /\b(chocolates?|candy|candies|chewing gum|gum|toffee|lollipops?|marshmallows?|jell(y|ies)|gumm(y|ies)|sweets?|caramels?|nougat|mints?|halaw[ae]|halva|lollies|bonbons?)\b/i],
+    ['Biscuits & bakery', /\b(biscuits?|cookies?|wafers?|crackers?|cakes?|muffins?|rusks?|croissants?|breads?|pastry|pastries|donuts?|doughnuts?|buns?|toast)\b/i],
+    ['Frozen', /\b(frozen|ice ?creams?|popsicles?|nuggets?|french fries|fries)\b/i],
+    ['Snacks', /\b(chips?|crisps?|popcorn|lays|doritos|cheetos|pringles|ruffles|tyrrells|pretzels?|snacks?|nuts?|almonds?|cashews?|pistachios?|seeds?|trail mix|dried fruits?|raisins?|granola bars?|peanuts?(?!\s*butter))\b/i],
+    ['Canned food', /\b(canned|cans?|tuna|sardines?|baked beans|beans|kidney beans|corn kernels|sweet corn|hummus|foul|fava|ful|mushrooms?|olives?|pickles?|tomato paste|pesto)\b/i],
+    ['Pantry & cooking', /\b(oils?|rice|pasta|spaghetti|macaroni|noodles?|sugar|salt|flour|sauces?|ketchup|mayonnaise|mayo|vinegar|spices?|seasonings?|stock cubes?|cereals?|oats|honey|jam|peanut butter|nutella|spreads?|tahini|soups?|broth|lentils?|chickpeas|couscous|yeast|baking|pepper|cumin|curry|cinnamon|cornflour|corn flour|syrup|molasses)\b/i],
+    ['Meat & fish', /\b(chicken|beef|lamb|veal|meat|minced|mince|sausages?|burgers?|turkey|salami|luncheon|hot ?dogs?|fish|shrimps?|prawns?|salmon|tilapia|kofta)\b/i],
+    ['Dairy & eggs', /\b(milk|laban|yogh?urts?|cheese|butter|labn[ae]h?|eggs?|ghee|mozzarella|cheddar|kiri|yakult)\b/i],
+    ['Fruit & vegetables', /\b(fruits?|vegetables?|veggies|tomato(es)?|potato(es)?|onions?|apples?|bananas?|oranges?|lemons?|cucumbers?|carrots?|lettuce|mangos?|grapes?|strawberr(y|ies)|avocados?|garlic)\b/i],
+  ];
+  const CAT_FAMILY = { hair_personal_care: 'Personal care', cleaning_hygiene: 'Household cleaning', baby_product: 'Baby', food_beverage: 'Other food & drinks' };
+  const CAT_ORDER = [...new Set([...CAT_RULES.map((r) => r[0]), 'Other food & drinks', 'Other'])];
+  const catOf = (title, family) => {
+    const t = String(title || '');
+    for (const [label, re] of CAT_RULES) if (re.test(t)) return label;
+    return CAT_FAMILY[family] || 'Other';
+  };
+
   function build(rows) {
     const t0 = iso(new Date());
     const byWh = new Map(), byFam = new Map(), byBk = new Map(), sku = new Map();
@@ -509,6 +552,7 @@ const CHECK_EVERY_SECONDS = 60;
       const e10 = String(r.expiry_date || '').slice(0, 10);
       const exp = /^\d{4}-\d{2}-\d{2}$/.test(e10) ? e10 : '';
       const fam = r.family_code || '(no family)';
+      const cat = catOf(r.title, fam);
       const bk = bucketOf(exp, t0);
       for (const k of [wh, 'All']) {
         const o = W(k);
@@ -521,10 +565,10 @@ const CHECK_EVERY_SECONDS = 60;
       }
       const key = wh + '|' + r.sku;
       let s = sku.get(key);
-      if (!s) { s = { wh, sku: r.sku, title: r.title, family: fam, soh: 0, reserved: 0, locs: new Set(), bk: new Set(), nearest: '' }; sku.set(key, s); }
+      if (!s) { s = { wh, sku: r.sku, title: r.title, family: fam, cat, soh: 0, reserved: 0, locs: new Set(), bk: new Set(), nearest: '' }; sku.set(key, s); }
       s.soh += qty; s.reserved += res; s.locs.add(loc); s.bk.add(bk);
       if (exp && (!s.nearest || exp < s.nearest)) s.nearest = exp;
-      lines.push({ wh, loc, zone: r.zone_code || '', pb: String(r.pbarcode || '').trim(), lvl: r.barcode_level_code || '', brand: r.brand_code || '', sku: r.sku, title: r.title, family: fam, exp, bk, days: exp ? dayDiff(exp, t0) : null, qty, res });
+      lines.push({ wh, loc, zone: r.zone_code || '', pb: String(r.pbarcode || '').trim(), lvl: r.barcode_level_code || '', brand: r.brand_code || '', sku: r.sku, title: r.title, family: fam, cat, exp, bk, days: exp ? dayDiff(exp, t0) : null, qty, res });
       // consolidation plan input
       if (!exp || exp < t0) { keep.add(wh + '|' + loc); continue; }
       const lk = [wh, r.sku, exp, loc].join('|');
@@ -543,7 +587,7 @@ const CHECK_EVERY_SECONDS = 60;
       for (const o of a.slice(1)) {
         const frees = !keep.has(o.wh + '|' + o.loc);
         const pr = o.r > 0 ? 4 : frees ? (o.q <= QUICK_WIN_MAX_QTY ? 1 : 2) : 3;
-        moves.push({ pr, wh: o.wh, sku: o.sku, title: o.title, family: o.family, exp: o.exp, days: dayDiff(o.exp, t0), from: o.loc, qty: o.q, reserved: o.r, to: t.loc, toq: t.q, frees });
+        moves.push({ pr, wh: o.wh, sku: o.sku, title: o.title, family: o.family, cat: catOf(o.title, o.family), exp: o.exp, days: dayDiff(o.exp, t0), from: o.loc, qty: o.q, reserved: o.r, to: t.loc, toq: t.q, frees });
       }
     }
     moves.sort((a, b) => a.pr - b.pr || a.wh.localeCompare(b.wh) || a.days - b.days);
@@ -553,7 +597,7 @@ const CHECK_EVERY_SECONDS = 60;
       wh: [...byWh.values()].map((o) => ({ wh: o.wh, soh: o.soh, reserved: o.reserved, available: o.soh - o.reserved, skus: o.skus.size, locations: o.locs.size, expired: o.expired, expiring: o.expiring })),
       fam: split(byFam).map(([wh, family, soh]) => ({ wh, family, soh })),
       bk: byBk,
-      sku: [...sku.values()].map((s) => ({ wh: s.wh, sku: s.sku, title: s.title, family: s.family, soh: s.soh, reserved: s.reserved, locations: s.locs.size, bk: s.bk, nearest: s.nearest })),
+      sku: [...sku.values()].map((s) => ({ wh: s.wh, sku: s.sku, title: s.title, family: s.family, cat: s.cat, soh: s.soh, reserved: s.reserved, locations: s.locs.size, bk: s.bk, nearest: s.nearest })),
       moves,
       lines,
     };
@@ -630,7 +674,7 @@ const CHECK_EVERY_SECONDS = 60;
   const matchQ = (q, ...vals) => !q || vals.some((v) => String(v || '').toLowerCase().includes(q));
   function skuView() {
     const q = st.q.trim().toLowerCase();
-    let rows = M.sku.filter((r) => (st.wh === 'All' || r.wh === st.wh) && (st.family === 'All' || r.family === st.family) && (!st.bucket || r.bk.has(st.bucket)) && matchQ(q, r.sku, r.title))
+    let rows = M.sku.filter((r) => (st.wh === 'All' || r.wh === st.wh) && (st.family === 'All' || r.family === st.family) && (st.cat === 'All' || r.cat === st.cat) && (!st.bucket || r.bk.has(st.bucket)) && matchQ(q, r.sku, r.title))
       .map((r) => { const p = priceOf(r.sku); return Object.assign(r, { price: p && p.price != null ? p.price : null, value: p && p.price != null ? p.price * r.soh : null }); });
     rows.sort((a, b) => {
       let va = a[st.sortKey], vb = b[st.sortKey];
@@ -643,7 +687,7 @@ const CHECK_EVERY_SECONDS = 60;
   }
   function planBase() {
     const q = st.q.trim().toLowerCase();
-    return M.moves.filter((m) => (st.wh === 'All' || m.wh === st.wh) && (st.family === 'All' || m.family === st.family) && matchQ(q, m.sku, m.title, m.from, m.to));
+    return M.moves.filter((m) => (st.wh === 'All' || m.wh === st.wh) && (st.family === 'All' || m.family === st.family) && (st.cat === 'All' || m.cat === st.cat) && matchQ(q, m.sku, m.title, m.from, m.to));
   }
   const planView = () => planBase().filter((m) => st.pr === 'All' || String(m.pr) === st.pr);
   const zoneType = (z) => (!z ? 'unk' : /^STOCK/i.test(z) ? 'live' : 'held');
@@ -652,7 +696,7 @@ const CHECK_EVERY_SECONDS = 60;
     if (!st.bucket) return [];
     const q = st.q.trim().toLowerCase();
     return M.lines
-      .filter((l) => l.bk === st.bucket && (st.wh === 'All' || l.wh === st.wh) && (st.family === 'All' || l.family === st.family) && matchQ(q, l.sku, l.title, l.loc))
+      .filter((l) => l.bk === st.bucket && (st.wh === 'All' || l.wh === st.wh) && (st.family === 'All' || l.family === st.family) && (st.cat === 'All' || l.cat === st.cat) && matchQ(q, l.sku, l.title, l.loc))
       .sort((a, b) => (a.days ?? 1e9) - (b.days ?? 1e9) || b.qty - a.qty || a.loc.localeCompare(b.loc));
   }
 
@@ -662,13 +706,15 @@ const CHECK_EVERY_SECONDS = 60;
     drawDS();
     const extra = [];
     if (st.family !== 'All') extra.push('family ' + st.family);
+    if (st.cat !== 'All') extra.push('category ' + st.cat);
     if (st.bucket) extra.push('expiry ' + BKL[st.bucket]);
     if (st.q.trim()) extra.push('search "' + st.q.trim() + '"');
     $('#printFilters').textContent = extra.length ? ' · ' + extra.join(' · ') : '';
     const tag = $('#bucketTag');
     tag.hidden = !st.bucket;
     tag.textContent = st.bucket ? 'Expiry: ' + BKL[st.bucket] + ' ×' : '';
-    drawLookup(); drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawExpiry(); drawFamily(); drawZones(); drawLocs(); drawTable(); drawPlan();
+    $('#cat').value = st.cat;
+    drawLookup(); drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawExpiry(); drawFamily(); drawCategory(); drawZones(); drawLocs(); drawTable(); drawPlan();
   }
 
   // ---------- SKU lookup ----------
@@ -928,6 +974,40 @@ const CHECK_EVERY_SECONDS = 60;
     }));
   }
 
+  // ---------- SOH by main category (warehouse filter, like the family chart) ----------
+  function catRows() {
+    const m = new Map();
+    for (const l of M.lines) {
+      if (st.wh !== 'All' && l.wh !== st.wh) continue;
+      let o = m.get(l.cat);
+      if (!o) { o = { cat: l.cat, soh: 0, skus: new Set(), locs: new Set() }; m.set(l.cat, o); }
+      o.soh += l.qty; o.skus.add(l.sku); o.locs.add(l.wh + '|' + l.loc);
+    }
+    return [...m.values()].map((o) => ({ cat: o.cat, soh: o.soh, skus: o.skus.size, locations: o.locs.size })).filter((r) => r.soh > 0).sort((a, b) => b.soh - a.soh || a.cat.localeCompare(b.cat));
+  }
+  function drawCategory() {
+    const box = $('#catChart'); box.replaceChildren();
+    const rows = catRows();
+    if (!rows.length) { box.append(el('div', 'msg', 'No stock in this warehouse.')); return; }
+    const W = Math.max(280, box.clientWidth), rowH = 26, H = Math.max(40, rows.length * rowH + 6);
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H).attr('role', 'img').attr('aria-label', 'SOH by category');
+    const meas = (txt, bold) => { const t = svg.append('text').attr('font-size', 12).attr('font-weight', bold ? 700 : 400).text(txt); const w = t.node().getComputedTextLength(); t.remove(); return w; };
+    const lw = d3.max(rows, (r) => meas(r.cat)) || 0;
+    const vw = d3.max(rows, (r) => meas(F(r.soh), true)) || 0;
+    const L = Math.min(lw + 12, W * 0.45), R = vw + 12;
+    const x = d3.scaleLinear([0, d3.max(rows, (r) => r.soh) || 1], [0, Math.max(10, W - L - R)]);
+    const t = tipFor(box);
+    const on = (d) => d.cat === st.cat;
+    const g = svg.selectAll('g.r').data(rows).join('g').attr('class', 'r').attr('transform', (d, i) => `translate(0,${i * rowH + 3})`).style('cursor', 'pointer')
+      .on('click', (e, d) => { st.cat = st.cat === d.cat ? 'All' : d.cat; resetPaging(); render(); });
+    g.append('text').attr('x', L - 10).attr('y', rowH / 2 - 1).attr('dy', '.35em').attr('text-anchor', 'end').attr('font-size', 12).style('fill', (d) => (on(d) ? 'var(--y)' : 'var(--muted)')).text((d) => d.cat);
+    g.append('rect').attr('x', L).attr('y', 5).attr('height', rowH - 11).attr('rx', 4).attr('width', (d) => Math.max(2, x(d.soh)))
+      .style('fill', (d) => (on(d) ? 'var(--y)' : 'var(--b)')).style('fill-opacity', (d) => (on(d) ? 1 : 0.7))
+      .on('mousemove', (e, d) => showTip(box, t, e, d.cat, F(d.soh) + ' units · ' + F(d.skus) + ' SKUs · ' + F(d.locations) + ' locations'))
+      .on('mouseleave', () => { t.hidden = true; });
+    g.append('text').attr('x', (d) => L + Math.max(2, x(d.soh)) + 6).attr('y', rowH / 2 - 1).attr('dy', '.35em').attr('font-size', 12).attr('font-weight', 700).style('fill', 'var(--fg)').text((d) => F(d.soh));
+  }
+
   // ---------- zones: same filters as the tables (warehouse, family, expiry, search) ----------
   function zoneRows() {
     const q = st.q.trim().toLowerCase();
@@ -935,6 +1015,7 @@ const CHECK_EVERY_SECONDS = 60;
     for (const l of M.lines) {
       if (st.wh !== 'All' && l.wh !== st.wh) continue;
       if (st.family !== 'All' && l.family !== st.family) continue;
+      if (st.cat !== 'All' && l.cat !== st.cat) continue;
       if (st.bucket && l.bk !== st.bucket) continue;
       if (!matchQ(q, l.sku, l.title, l.loc)) continue;
       const z = l.zone || '(no zone)';
@@ -1083,9 +1164,9 @@ const CHECK_EVERY_SECONDS = 60;
   const sohDetailOut = () => {
     const q = st.q.trim().toLowerCase();
     return M.lines
-      .filter((l) => (st.wh === 'All' || l.wh === st.wh) && (st.family === 'All' || l.family === st.family) && (!st.bucket || l.bk === st.bucket) && matchQ(q, l.sku, l.title, l.pb, l.loc))
+      .filter((l) => (st.wh === 'All' || l.wh === st.wh) && (st.family === 'All' || l.family === st.family) && (st.cat === 'All' || l.cat === st.cat) && (!st.bucket || l.bk === st.bucket) && matchQ(q, l.sku, l.title, l.pb, l.loc))
       .sort((a, b) => a.wh.localeCompare(b.wh) || String(a.sku).localeCompare(String(b.sku)) || a.loc.localeCompare(b.loc))
-      .map((l) => { const p = priceOf(l.sku) || {}; return { Warehouse: l.wh, Pbarcode: l.pb && l.pb !== 'N/A' ? l.pb : '', SKU: l.sku, Title: l.title, Family: l.family, 'SOH qty': l.qty, 'Reserved qty': l.res, 'Available qty': l.qty - l.res, Location: l.loc, Zone: l.zone, 'Price (EGP)': p.price ?? '', 'Line value (EGP)': p.price != null ? Math.round(p.price * l.qty * 100) / 100 : '' }; });
+      .map((l) => { const p = priceOf(l.sku) || {}; return { Warehouse: l.wh, Pbarcode: l.pb && l.pb !== 'N/A' ? l.pb : '', SKU: l.sku, Title: l.title, Family: l.family, Category: l.cat, 'SOH qty': l.qty, 'Reserved qty': l.res, 'Available qty': l.qty - l.res, Location: l.loc, Zone: l.zone, 'Price (EGP)': p.price ?? '', 'Line value (EGP)': p.price != null ? Math.round(p.price * l.qty * 100) / 100 : '' }; });
   };
   function exportXLSX() {
     if (!window.XLSX) { alert('Excel export could not load. Check your connection and try again.'); return; }
@@ -1099,7 +1180,7 @@ const CHECK_EVERY_SECONDS = 60;
       if (si >= 0) rows.forEach((r, i) => { const ref = XLSX.utils.encode_cell({ r: i + 1, c: si }); const v = r.SKU; if (ws[ref] && v) ws[ref].l = { Target: PRODUCT_URL(v), Tooltip: 'Open on noon Minutes' }; });
       XLSX.utils.book_append_sheet(wb, ws, name);
     };
-    const filt = [['Updated', updatedLabel], ['Warehouse', st.wh], ['Family', st.family], ['Expiry filter', st.bucket ? BKL[st.bucket] : 'All'], ['Search', st.q.trim() || '—'], ['Exported', new Date().toLocaleString()]];
+    const filt = [['Updated', updatedLabel], ['Warehouse', st.wh], ['Family', st.family], ['Category', st.cat], ['Expiry filter', st.bucket ? BKL[st.bucket] : 'All'], ['Search', st.q.trim() || '—'], ['Exported', new Date().toLocaleString()]];
     const info = XLSX.utils.aoa_to_sheet([['CAIID Stock on Hand export'], [], ...filt]);
     info['!cols'] = [{ wch: 16 }, { wch: 40 }];
     XLSX.utils.book_append_sheet(wb, info, 'Info');
@@ -1149,6 +1230,7 @@ const CHECK_EVERY_SECONDS = 60;
   $('#chips').addEventListener('click', (e) => { const b = e.target.closest('button[data-wh]'); if (b) pickWh(b.dataset.wh); });
   $('#cards').addEventListener('click', (e) => { const b = e.target.closest('button[data-wh]'); if (b) pickWh(st.wh === b.dataset.wh ? 'All' : b.dataset.wh); });
   $('#fam').addEventListener('change', (e) => { st.family = e.target.value; resetPaging(); if (M) render(); });
+  $('#cat').addEventListener('change', (e) => { st.cat = e.target.value; resetPaging(); if (M) render(); });
   let qt;
   $('#q').addEventListener('input', (e) => { clearTimeout(qt); qt = setTimeout(() => { st.q = e.target.value; resetPaging(); if (M) render(); }, 200); });
   $('#expChart').addEventListener('click', (e) => {
@@ -1159,7 +1241,7 @@ const CHECK_EVERY_SECONDS = 60;
   $('#bucketTag').addEventListener('click', () => { st.bucket = null; st.shown = 200; render(); });
   $('#lmore').addEventListener('click', () => { st.lshown += 200; drawLocs(); });
   $('#prChips').addEventListener('click', (e) => { const b = e.target.closest('button[data-pr]'); if (b) { st.pr = b.dataset.pr; st.pshown = 200; drawPlan(); } });
-  $('#reset').addEventListener('click', () => { Object.assign(st, { wh: 'All', family: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200, lshown: 200 }); $('#q').value = ''; if (M) render(); });
+  $('#reset').addEventListener('click', () => { Object.assign(st, { wh: 'All', family: 'All', cat: 'All', q: '', bucket: null, sortKey: 'locations', sortDir: -1, shown: 200, pr: 'All', pshown: 200, lshown: 200 }); $('#q').value = ''; if (M) render(); });
   $('#more').addEventListener('click', () => { st.shown += 200; drawTable(); });
   $('#pmore').addEventListener('click', () => { st.pshown += 200; drawPlan(); });
   $('#tbl thead').addEventListener('click', (e) => {
@@ -1188,6 +1270,7 @@ const CHECK_EVERY_SECONDS = 60;
   setHdr();
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { setHdr(); if (M) drawFamily(); }, 150); });
 
+  $('#cat').append(...CAT_ORDER.map((c) => new Option(c, c)));
   drawDS();
   load(true);
   setInterval(() => { if (!document.hidden) load(false); }, CHECK_EVERY_SECONDS * 1000);
