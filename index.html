@@ -501,19 +501,19 @@ const CHECK_EVERY_SECONDS = 60;
     return 'y1';
   };
 
-  // ---------- main category from the item description (title); the family is the fallback ----------
+  // ---------- main category: from the item title first, then from the family ----------
   // Rules are checked in order and the first match wins. Add or move words here to change a category.
   const CAT_RULES = [
     ['Baby', /\b(diapers?|nappies|nappy|baby|babies|infant|toddler)\b/i],
-    ['Pet', /\b(cats?|dogs?|pets?|kittens?|puppy|puppies)\b/i],
+    ['Pet care', /\b(cats?|dogs?|pets?|kittens?|puppy|puppies)\b/i],
     ['Feminine care', /\b(sanitary|pads?|tampons?|panty ?liners?|liners?)\b/i],
     ['Oral care', /\b(toothpaste|tooth ?brush(es)?|mouth ?wash|dental|floss)\b/i],
     ['Hair care', /\b(shampoo|conditioner|hair|hair ?gel|hair ?spray|hair ?oil)\b/i],
     ['Dishwashing', /\b(dish ?wash\w*|dish ?soap|dish ?liquid|washing up)\b/i],
     ['Laundry', /\b(detergents?|laundry|fabric softeners?|softeners?|stain remover)\b/i],
-    ['Wipes & tissues', /\b(wipes?|tissues?|toilet (paper|rolls?)|kitchen towels?|paper towels?|napkins?|handkerchiefs?)\b/i],
-    ['Household cleaning', /\b(clean\w*|disinfect\w*|sanitiz\w*|bleach|floor|mops?|sponges?|bin bags?|garbage bags?|air fresheners?|freshener|insecticides?|mosquito|cockroach)\b/i],
-    ['Personal care', /\b(soaps?|body ?wash|shower|deodorants?|body lotion|hand cream|face|skin|razors?|shaving|shave|perfume|sunscreen|rose ?water)\b/i],
+    ['Wipes & tissues', /\b(wipes?|tissues?|toilet (paper|rolls?)|kitchen towels?|paper towels?|napkins?|handkerchiefs?)\b|منديل|مناديل|مناشف مطبخ|كلينكس/i],
+    ['Household cleaning', /\b(clean\w*|disinfect\w*|sanitiz\w*|bleach|floor|mops?|sponges?|bin bags?|garbage bags?|trash bags?|air fresheners?|freshener|insecticides?|mosquito|cockroach)\b|أكياس نفايات|منظف|مطهر/i],
+    ['Personal care', /\b(soaps?|body ?wash|shower|deodorants?|body lotion|hand cream|face|skin|razors?|shaving|shave|perfume|sunscreen|rose ?water)\b|أعواد قطنية/i],
     ['Juices & energy', /\b(juices?|nectars?|smoothies?|energy drinks?|red bull|monster|lemonade|coconut water|ice ?tea|iced tea|drink mix)\b/i],
     ['Water', /\b(water|waters)\b/i],
     ['Soft drinks', /\b(cola|coca[- ]?cola|coke|pepsi|sprite|fanta|7 ?up|mirinda|schweppes|soda|soft drinks?|tonic|ginger ale|sparkling)\b/i],
@@ -528,13 +528,38 @@ const CHECK_EVERY_SECONDS = 60;
     ['Dairy & eggs', /\b(milk|laban|yogh?urts?|cheese|butter|labn[ae]h?|eggs?|ghee|mozzarella|cheddar|kiri|yakult)\b/i],
     ['Fruit & vegetables', /\b(fruits?|vegetables?|veggies|tomato(es)?|potato(es)?|onions?|apples?|bananas?|oranges?|lemons?|cucumbers?|carrots?|lettuce|mangos?|grapes?|strawberr(y|ies)|avocados?|garlic)\b/i],
   ];
-  const CAT_FAMILY = { hair_personal_care: 'Personal care', cleaning_hygiene: 'Household cleaning', baby_product: 'Baby', food_beverage: 'Other food & drinks' };
-  const CAT_ORDER = [...new Set([...CAT_RULES.map((r) => r[0]), 'Other food & drinks', 'Other'])];
+  // batteries and chargers sit in home_improvement or electronics; book lights and power strips are excluded
+  const BATTERY = /\b(batter(y|ies)|alkaline|lithium|coin|AAA?|9V|charger|power ?banks?|rechargeable|recharge)\b/i;
+  const BATTERY_FAMILIES = new Set(['home_improvement', 'electronic_accessories']);
+  // family -> main category, used when the title matches no rule
+  const CAT_FAMILY = {
+    food_beverage: 'Other food & drinks', cleaning_hygiene: 'Household cleaning', hair_personal_care: 'Personal care', baby_product: 'Baby',
+    home_improvement: 'Home & tools', toys: 'Toys & games', gardening: 'Gardening', kitchen_dining: 'Kitchen & disposables',
+    bath: 'Bath & towels', stationery: 'Stationery', health_nutrition: 'Health & wellness', fragrance: 'Fragrance',
+    pets: 'Pet care', video_games: 'Video games', electronic_accessories: 'Electronics', books: 'Books & crafts', apparel: 'Apparel',
+  };
+  const famLabel = (f) => {
+    if (CAT_FAMILY[f]) return CAT_FAMILY[f];
+    if (!f || f === '(no family)') return 'Other';
+    const s = String(f).replace(/_/g, ' ').trim();
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
   const catOf = (title, family) => {
     const t = String(title || '');
+    if (BATTERY_FAMILIES.has(family) && BATTERY.test(t) && !/\b(light|power ?strips?|power supply|outlets?)\b/i.test(t)) return 'Batteries & chargers';
     for (const [label, re] of CAT_RULES) if (re.test(t)) return label;
-    return CAT_FAMILY[family] || 'Other';
+    return famLabel(family);
   };
+  // the category dropdown lists whatever categories the loaded stock actually has
+  function syncCatOptions() {
+    const sel = $('#cat');
+    const cats = [...new Set(M.lines.map((l) => l.cat))].sort((a, b) => a.localeCompare(b));
+    if (st.cat !== 'All' && !cats.includes(st.cat)) st.cat = 'All';
+    const want = ['All', ...cats];
+    const have = [...sel.options].map((o) => o.value);
+    if (have.length === want.length && have.every((v, i) => v === want[i])) return;
+    sel.replaceChildren(...want.map((c) => new Option(c === 'All' ? 'All categories' : c, c)));
+  }
 
   function build(rows) {
     const t0 = iso(new Date());
@@ -713,6 +738,7 @@ const CHECK_EVERY_SECONDS = 60;
     const tag = $('#bucketTag');
     tag.hidden = !st.bucket;
     tag.textContent = st.bucket ? 'Expiry: ' + BKL[st.bucket] + ' ×' : '';
+    syncCatOptions();
     $('#cat').value = st.cat;
     drawLookup(); drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawExpiry(); drawFamily(); drawCategory(); drawZones(); drawLocs(); drawTable(); drawPlan();
   }
@@ -1270,7 +1296,6 @@ const CHECK_EVERY_SECONDS = 60;
   setHdr();
   let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { setHdr(); if (M) drawFamily(); }, 150); });
 
-  $('#cat').append(...CAT_ORDER.map((c) => new Option(c, c)));
   drawDS();
   load(true);
   setInterval(() => { if (!document.hidden) load(false); }, CHECK_EVERY_SECONDS * 1000);
