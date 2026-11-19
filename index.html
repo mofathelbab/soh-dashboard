@@ -106,6 +106,7 @@ select.in{padding-right:28px;background-image:linear-gradient(45deg,transparent 
 .extrack{height:12px;background:var(--line);border-radius:6px;overflow:hidden}
 .extrack i{display:block;height:100%;border-radius:6px;min-width:2px}
 .exq{text-align:right;font-weight:800}
+.zrow{cursor:default}
 .exp,.exs{text-align:right;color:var(--muted);font-size:12px}
 .ex-warn{display:flex;gap:10px;flex-wrap:wrap}
 .ex-warn .pill b.r{color:var(--r)} .ex-warn .pill b.o{color:var(--o)}
@@ -222,7 +223,7 @@ td.c-ph{width:46px;padding-top:4px;padding-bottom:4px}
     </div>
   </div>
   <nav class="nav" aria-label="Sections">
-    <a href="#lookup">SKU lookup</a><a href="#warehouses">Overview</a><a href="#expiry">Expiry</a><a href="#families">Families</a><a href="#skusec">SKUs</a><a href="#consol">Consolidation plan</a>
+    <a href="#lookup">SKU lookup</a><a href="#warehouses">Overview</a><a href="#expiry">Expiry</a><a href="#families">Families</a><a href="#zones">Zones</a><a href="#skusec">SKUs</a><a href="#consol">Consolidation plan</a>
   </nav>
 </header>
 
@@ -290,6 +291,14 @@ td.c-ph{width:46px;padding-top:4px;padding-bottom:4px}
       <div class="chart" id="famChart"></div>
     </section>
   </div>
+
+  <section class="panel" id="zones">
+    <div class="ph">
+      <div class="ico" style="--ic:rgba(96,165,250,.14);--icc:var(--b)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg></div>
+      <div><h2 class="h">Zones</h2><p class="note">Units, share and locations per zone, following the warehouse, family, expiry and search filters. Green = live zone (STOCK…), blue = other zone, grey = no zone.</p></div>
+    </div>
+    <div class="exrows" id="zoneChart"></div>
+  </section>
 
   <section class="panel" id="exploc" hidden>
     <div class="ph">
@@ -658,7 +667,7 @@ const CHECK_EVERY_SECONDS = 60;
     const tag = $('#bucketTag');
     tag.hidden = !st.bucket;
     tag.textContent = st.bucket ? 'Expiry: ' + BKL[st.bucket] + ' ×' : '';
-    drawLookup(); drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawExpiry(); drawFamily(); drawLocs(); drawTable(); drawPlan();
+    drawLookup(); drawCards(); drawChips(); drawFamFilter(); drawKpis(); drawExpiry(); drawFamily(); drawZones(); drawLocs(); drawTable(); drawPlan();
   }
 
   // ---------- SKU lookup ----------
@@ -915,6 +924,44 @@ const CHECK_EVERY_SECONDS = 60;
       const tr = el('span', 'extrack'); const fill = el('i'); fill.style.width = (100 * r.soh / max) + '%'; fill.style.background = r.c; if (!r.soh) fill.style.minWidth = '0'; tr.append(fill);
       b.append(l, tr, el('span', 'exq', F(r.soh)), el('span', 'exp', r.soh ? P(r.pct) : '–'), el('span', 'exs', F(r.skus)));
       return b;
+    }));
+  }
+
+  // ---------- zones: same filters as the tables (warehouse, family, expiry, search) ----------
+  function zoneRows() {
+    const q = st.q.trim().toLowerCase();
+    const m = new Map();
+    for (const l of M.lines) {
+      if (st.wh !== 'All' && l.wh !== st.wh) continue;
+      if (st.family !== 'All' && l.family !== st.family) continue;
+      if (st.bucket && l.bk !== st.bucket) continue;
+      if (!matchQ(q, l.sku, l.title, l.loc)) continue;
+      const z = l.zone || '(no zone)';
+      let o = m.get(z);
+      if (!o) { o = { zone: z, type: zoneType(l.zone), soh: 0, locs: new Set(), skus: new Set() }; m.set(z, o); }
+      o.soh += l.qty; o.locs.add(l.wh + '|' + l.loc); o.skus.add(l.sku);
+    }
+    const rows = [...m.values()].map((o) => ({ zone: o.zone, type: o.type, soh: o.soh, locations: o.locs.size, skus: o.skus.size }));
+    const total = d3.sum(rows, (r) => r.soh) || 0;
+    for (const r of rows) r.pct = total ? r.soh / total : 0;
+    return rows.sort((a, b) => b.soh - a.soh || a.zone.localeCompare(b.zone));
+  }
+  const ZC = { live: 'var(--g)', held: 'var(--b)', unk: 'var(--gr)' };
+  function drawZones() {
+    const box = $('#zoneChart');
+    const rows = zoneRows();
+    if (!rows.length) { box.replaceChildren(el('div', 'msg', 'No zones match these filters.')); return; }
+    const max = d3.max(rows, (r) => r.soh) || 1;
+    const P = d3.format('.1%');
+    const head = el('div', 'exhead');
+    head.append(el('span', '', 'Zone'), el('span', '', ''), el('span', '', 'Units'), el('span', '', 'Share'), el('span', '', 'Locations'));
+    box.replaceChildren(head, ...rows.map((r) => {
+      const row = el('div', 'exrow zrow');
+      row.title = F(r.skus) + ' SKUs in this zone';
+      const l = el('span', 'exl'); const dot = el('i'); dot.style.background = ZC[r.type]; l.append(dot, r.zone);
+      const tr = el('span', 'extrack'); const fill = el('i'); fill.style.width = (100 * r.soh / max) + '%'; fill.style.background = ZC[r.type]; tr.append(fill);
+      row.append(l, tr, el('span', 'exq', F(r.soh)), el('span', 'exp', r.soh ? P(r.pct) : '–'), el('span', 'exs', F(r.locations)));
+      return row;
     }));
   }
 
