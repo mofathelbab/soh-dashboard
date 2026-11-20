@@ -443,10 +443,19 @@ const CHECK_EVERY_SECONDS = 60;
   ];
   const dsKey = (r) => { const d = String(r.dataset || '').trim(); return d === 'Expired' || d === 'Near Expiry' ? 'Expired' : d === 'Non-live' ? 'Non-live' : 'Live'; };
   let DS_N = { Live: 0, Expired: 0, 'Non-live': 0 };
+  // The report's Expired pull and Near Expiry pull overlap: the near-expiry list already contains every
+  // expired row. So a row that is in both is counted once, keyed on the fields that identify one stock line.
+  const dupKey = (r) => [r.partner_warehouse_code, r.location_code, r.sku, String(r.expiry_date || '').slice(0, 10), r.id_partner, r.serial_barcode, r.qty].join('|');
   function rebuild() {
     const n = { Live: 0, Expired: 0, 'Non-live': 0 };
     const keep = [];
-    for (const r of RAW) { const k = dsKey(r); n[k]++; if (k === DS) keep.push(r); }
+    const seenExp = new Set();
+    for (const r of RAW) {
+      const k = dsKey(r);
+      if (k === 'Expired') { const key = dupKey(r); if (seenExp.has(key)) continue; seenExp.add(key); }
+      n[k]++;
+      if (k === DS) keep.push(r);
+    }
     DS_N = n;
     M = build(keep);
   }
